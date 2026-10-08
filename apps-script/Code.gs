@@ -17,7 +17,7 @@
 /* ----------------------------------------------------------------------------
  * Konstanta & skema
  * ------------------------------------------------------------------------- */
-var APP_VERSION = '1.0.1';
+var APP_VERSION = '1.0.2';
 var TOKEN_TTL_SEC = 6 * 3600;                    /* CacheService maks 21600 dtk */
 var BATCH_SIZE = 200;
 var TZ = 'GMT';
@@ -105,7 +105,7 @@ function registerAction(name, bucket, fn) {
 }
 
 function handle_(payload, method, query) {
-  CTX = { requestId: Utilities.getUuid(), warnings: [], retryIn: null, details: null, method: method };
+  CTX = { requestId: Utilities.getUuid(), warnings: [], retryIn: null, details: null, method: method, logQueue: [] };
 
   try {
     var action = String((payload && (payload.a || payload.action)) || '').trim();
@@ -140,6 +140,8 @@ function handle_(payload, method, query) {
     Logger.log('FATAL requestId=' + CTX.requestId + ' :: ' + (e && e.stack || e));
     return { ok: false, error: { code: 'SERVER_ERROR', message: 'Terjadi kesalahan pada server.' },
              requestId: CTX.requestId };
+  } finally {
+    flushLogs_();
   }
 }
 
@@ -230,14 +232,21 @@ function rateLimit_(bucket, action, session) {
  * Spreadsheet & schema (docs/schema.md §13 migration, idempoten)
  * ------------------------------------------------------------------------- */
 function spreadsheet_() {
-  var id = props_().getProperty('SPREADSHEET_ID');
-  var ss = null;
-  if (id) { try { ss = SpreadsheetApp.openById(id); } catch (e) { ss = null; } }
-  else { try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) { ss = null; } }
-  if (!ss) throwApp_('SHEET_NOT_READY',
-    'Spreadsheet belum dihubungkan. Set properti SPREADSHEET_ID (lihat docs/deployment.md).');
-  return ss;
+  if (!_ssCache) {
+    var id = props_().getProperty('SPREADSHEET_ID');
+    var ss = null;
+    if (id) { try { ss = SpreadsheetApp.openById(id); } catch (e) { ss = null; } }
+    else { try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) { ss = null; } }
+    if (!ss) throwApp_('SHEET_NOT_READY',
+      'Spreadsheet belum dihubungkan. Set properti SPREADSHEET_ID (lihat docs/deployment.md).');
+    _ssCache = ss;
+  }
+  return _ssCache;
 }
+
+/* C-12: objek spreadsheet di-cache selama 1 eksekusi script (bukan antar request).
+   openById/getActiveSpreadsheet tidak diulang dlm 1 request berurutan. */
+var _ssCache = null;
 
 function sheet_(name) {
   var ss = spreadsheet_();
@@ -396,20 +405,32 @@ function konfigEntry_(group, key) {
 
 /* ----------------------------------------------------------------------------
  * AUDIT — append-only (FR-009). Gagal menulis log TIDAK membatalkan transaksi.
+ * C-16: log di-queue dulu (tanpa RPC), lalu di-flush SATU batch di akhir request
+ * oleh flushLogs_() dari finally handle_() — cost log ≈ 2 RPC untuk berapa pun.
  * ------------------------------------------------------------------------- */
 function appendLog_(actor, action, entity, entityId, before, after) {
+  if (!CTX || !CTX.logQueue) return;
+  var clip = function (v) {
+    if (v === null || v === undefined) return '';
+    var s = typeof v === 'string' ? v : JSON.stringify(v);
+    return s.length > 5000 ? s.slice(0, 5000) : s;      /* C-08 */
+  };
+  CTX.logQueue.push([nowIso_(), actor || 'unknown', action, entity, entityId,
+                     clip(before), clip(after), CTX.requestId]);
+}
+
+function flushLogs_() {
+  var q = CTX && CTX.logQueue;
+  if (!q || !q.length) return;
+  var rows = q.slice();
+  CTX.logQueue.length = 0;
   try {
     var sh = sheet_('log');
-    var clip = function (v) {
-      if (v === null || v === undefined) return '';
-      var s = typeof v === 'string' ? v : JSON.stringify(v);
-      return s.length > 5000 ? s.slice(0, 5000) : s;      /* C-08 */
-    };
-    sh.appendRow([nowIso_(), actor || 'unknown', action, entity, entityId,
-                  clip(before), clip(after), CTX.requestId]);
+    var last = sh.getLastRow();
+    sh.getRange(last + 1, 1, rows.length, rows[0].length).setValues(rows);
   } catch (e) {
     CTX.warnings.push('LOG_WRITE_FAILED');
-    Logger.log('appendLog_ gagal: ' + e);
+    Logger.log('flushLogs_ gagal: ' + e);
   }
 }
 
@@ -875,8 +896,14 @@ function actionKonfigSave_(p) {
   if (!lock.tryLock(10000)) throwApp_('SHEET_BUSY', 'Spreadsheet sedang digunakan, coba lagi sebentar.');
   try {
     var sh = sheet_('konfig');
-    var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-    var data = readSheetObjects_('konfig');
+    var all = sh.getDataRange().getValues();          /* 1 RPC: header + semua baris */
+    var headers = all.length ? all[0] : [];
+    var data = [];
+    for (var r = 1; r < all.length; r++) {
+      var o = { row: r + 1 };                          /* baris fisik sheet (C-17) */
+      for (var j = 0; j < headers.length; j++) o[headers[j]] = all[r][j];
+      data.push(o);
+    }
     var index = {};
     data.forEach(function (e) { index[e.group + '\t' + e.key] = e; });
 
@@ -900,38 +927,40 @@ function actionKonfigSave_(p) {
                      updated_at: nowIso_(), prev: prev });
     });
 
+    /* baris baru: append sekali (1 RPC) */
     var rowsToWrite = [];
+    var newUpserts = [];
     upserts.forEach(function (u) {
-      if (u.prev) {
-        var rowObj = u.prev; rowObj.label = u.label; rowObj.parent = u.parent;
-        rowObj.updated_at = u.updated_at; rowObj.aktif = true;
-      } else {
-        var idx = data.length + rowsToWrite.length + 1;
-        u.urut = idx;
-        var obj = { group: u.group, key: u.key, label: u.label, aktif: true,
-                    urut: idx, parent: u.parent, updated_at: u.updated_at };
-        rowsToWrite.push(headers.map(function (h) { return obj[h]; }));
-        data.push(obj);
-      }
-      appendLog_('guru', u.prev ? 'UPDATE' : 'INSERT', 'konfig',
-                 u.group + '/' + u.key, u.prev || null,
-                 { group: u.group, key: u.key, label: u.label, parent: u.parent, aktif: true });
+      if (u.prev) return;
+      var idx = data.length + rowsToWrite.length + 1;
+      u.urut = idx;
+      var obj = { group: u.group, key: u.key, label: u.label, aktif: true,
+                  urut: idx, parent: u.parent, updated_at: u.updated_at };
+      rowsToWrite.push(headers.map(function (h) { return obj[h]; }));
+      newUpserts.push(u);
     });
-
     if (rowsToWrite.length) {
-      var last = sh.getLastRow();
-      sh.getRange(last + 1, 1, rowsToWrite.length, headers.length).setValues(rowsToWrite);
+      sh.getRange(all.length + 1, 1, rowsToWrite.length, headers.length).setValues(rowsToWrite);
+      newUpserts.forEach(function (u) {
+        appendLog_('guru', 'INSERT', 'konfig', u.group + '/' + u.key,
+                   null, { group: u.group, key: u.key, label: u.label,
+                           parent: u.parent, aktif: true });
+      });
     }
-    /* update label untuk entri lama */
+    /* baris lama: patch dari data (prev.row), tanpa getValues ulang (C-17) */
     upserts.forEach(function (u) {
       if (!u.prev) return;
-      var rowIdx = findKonfigRow_(u.group, u.key);
-      if (rowIdx < 0) return;
-      var vals = sh.getRange(rowIdx, 1, 1, headers.length).getValues()[0];
-      vals[headers.indexOf('label')] = u.label;
-      vals[headers.indexOf('parent')] = u.parent;
-      vals[headers.indexOf('updated_at')] = u.updated_at;
-      sh.getRange(rowIdx, 1, 1, headers.length).setValues([vals]);
+      var p = u.prev;
+      var arr = headers.map(function (h) {
+        if (h === 'label') return u.label;
+        if (h === 'parent') return u.parent;
+        if (h === 'updated_at') return u.updated_at;
+        if (h === 'aktif') return true;
+        return p[h] === undefined || p[h] === null ? '' : p[h];
+      });
+      sh.getRange(p.row, 1, 1, headers.length).setValues([arr]);
+      appendLog_('guru', 'UPDATE', 'konfig', u.group + '/' + u.key, p,
+                 { group: u.group, key: u.key, label: u.label, parent: u.parent, aktif: true });
     });
 
     invalidateKonfig_();

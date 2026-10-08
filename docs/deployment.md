@@ -123,7 +123,7 @@ Simpan & commit.
 | Tersangkut di konfirmasi Google ("unsafe") | Otorisasi belum disetujui | Selesaikan otorisasi sekali saat deploy §1.4 |
 | CORS/gagal baca respons | Upload via HTTP / fallback mati | Hanya HTTPS (GitHub Pages sudah HTTPS). Coba aktifkan `ALLOW_JSONP_FALLBACK` |
 | Deploy baru Apps Script belum berlaku | Perubahan Code.gs setelah publish | Klik **Deploy ▸ Manage deployments ▸ edit ▸ New version**, lalu pakai URL **version** yang baru |
-| Aplikasi terasa berat (login/tambah kelas lambat) | Web App cold start + RPC berulang ke sheet | Pastikan kode versi terbaru **v1.0.1+** (cache schema `SCHEMA_OK` & konfig `KONFIG_V1`) lalu deploy **New version**; gunakan `SPREADSHEET_ID`; opera sediakan koneksi stabil |
+| Aplikasi terasa berat (login/tambah kelas lambat) | Web App cold start + RPC berulang ke sheet | Pastikan kode versi **v1.0.2+** (cache schema/konfig, log batch, `konfig.save` 5 RPC) lalu deploy **New version**; gunakan `SPREADSHEET_ID`; koneksi stabil |
 
 ---
 

@@ -76,15 +76,20 @@ Uji fungsional browser tercakup di §5.
 ## 4. Performance (NFR-003, respons < 3s)
 
 **CANNOT VERIFY** — tidak ada instance Apps Script berjalan di lingkungan ini.
-Optimisasi performa yang sudah dipasang `apps-script/Code.gs` v1.0.1 (kurangi
-RPC per request):
-1. `ensureSchema_` short-circuit di cache 60 dtk (`SCHEMA_OK`) — getSheets tidak
-   lagi dipanggil tiap request (sebelumnya di setiap request termasuk login).
-2. `readKonfig_` di-cache 10 dtk (`KONFIG_V1`), di-invalidate di
-   `konfig.save/remove/deactivate` — baca sheet konfig hanya sekali per 10dtk;
-   write tetap langsung terlihat.
-Setelah deploy ulang, ukur ulang (langkah NFR §5). Estimasi biaya tersisa per
-request: baca sheet (`siswa`/`nilai` saat validasi) + tulis + 1 log.
+Optimisasi performa `apps-script/Code.gs` v1.0.2 (kurangi RPC per request, diukur
+dengan pencacah RPC di harness, unit: panggilan Google API):
+1. `ensureSchema_` short-circuit cache `SCHEMA_OK` 60 dtk — getSheets 1×/menit.
+2. `readKonfig_` cache `KONFIG_V1` 10 dtk + invalidate saat konfig ditulis.
+3. `spreadsheet_` cache objek spreadsheet per eksekusi (`_ssCache`).
+4. Log audit di-*queue* (`CTX.logQueue`) + flush 1 batch di akhir request oleh
+   `flushLogs_()` — bebas RPC; 2 RPC utk berapa pun banyak record.
+5. `konfig.save` baca sheet sekali (`getDataRange`), simpan index baris fisik,
+   tulis append + patch langsung tanpa getValues ulang.
+
+**Hasil ukur harness [11]:** tambah 1 kelas = **5 RPC** (getSheetByName 2
+`konfig`+`log`, baca 1, tulis 2). Implementasi lama ≈ 10 RPC. Sisanya utk
+`siswa.save`/`nilai.bulkSave`: baca sheet `siswa`/`nilai` utk cek duplikat +
+tulis + log batch. Angka latensi riil tetap butuh pengukuran pasca-deploy (§5).
 
 ---
 

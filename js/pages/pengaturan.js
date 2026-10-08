@@ -34,9 +34,14 @@
       var konfig = [];
 
       /* ---------------- data konfig ---------------- */
-      function loadKonfig() {
+      function loadKonfig(force) {
+        if (!force) {
+          var cached = App.store.getKonfig();
+          if (cached) { konfig = cached; return Promise.resolve(cached); }
+        }
         return App.api.call("konfig.list", {}).then(function (d) {
           konfig = (d && d.entries) || [];
+          App.store.setKonfig(konfig);
           return konfig;
         });
       }
@@ -46,8 +51,11 @@
           .sort(function (a, b) { return (a.urut || 0) - (b.urut || 0) || String(a.key).localeCompare(String(b.key)); });
       }
 
+      /* refresh dipakai setelah MUTASI → wajib fresh (skip cache lokal & server) */
       function refresh() {
-        return loadKonfig().then(function () { render(); });
+        App.store.clearKonfig();
+        App.store.clearMeta();   /* agar dropdown Entry/Rekap ikut segar */
+        return loadKonfig(true).then(function () { render(); });
       }
 
       function handleError(e, targetId) {

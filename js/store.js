@@ -11,10 +11,13 @@ App.store = (function () {
     META: "en.meta",
     META_AT: "en.metaAt",
     TOKEN: "en.token",
-    TOKEN_EXP: "en.tokenExp"
+    TOKEN_EXP: "en.tokenExp",
+    KONFIG: "en.konfig",
+    KONFIG_AT: "en.konfigAt"
   };
 
   var META_TTL_MS = 30 * 60 * 1000; /* 30 menit */
+  var KONFIG_TTL_MS = 60 * 1000;    /* 60 detik: cukup utk navigasi; dimatikan saat mutasi */
 
   function safeGet(key) {
     try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -40,6 +43,21 @@ App.store = (function () {
   }
 
   function clearMeta() { safeDel(K.META); safeDel(K.META_AT); }
+
+  /* ---------------- konfig (kelas/jenis/kode, urut, aktif) ---------------- */
+  function getKonfig() {
+    var raw = safeGet(K.KONFIG);
+    var at = parseInt(safeGet(K.KONFIG_AT) || "0", 10);
+    if (!raw || !at || Date.now() - at > KONFIG_TTL_MS) return null;
+    try { return JSON.parse(raw); } catch (e) { return null; }
+  }
+
+  function setKonfig(entries) {
+    safeSet(K.KONFIG, JSON.stringify(entries));
+    safeSet(K.KONFIG_AT, String(Date.now()));
+  }
+
+  function clearKonfig() { safeDel(K.KONFIG); safeDel(K.KONFIG_AT); }
 
   /* ---------------- sesi ---------------- */
   function getSession() {
@@ -107,6 +125,7 @@ App.store = (function () {
     getMeta: getMeta, setMeta: setMeta, clearMeta: clearMeta,
     getSession: getSession, setSession: setSession, clearSession: clearSession,
     getDraft: getDraft, setDraft: setDraft, clearDraft: clearDraft,
-    hasAnyDraft: hasAnyDraft, clearAllDrafts: clearAllDrafts
+    hasAnyDraft: hasAnyDraft, clearAllDrafts: clearAllDrafts,
+    getKonfig: getKonfig, setKonfig: setKonfig, clearKonfig: clearKonfig
   };
 })();

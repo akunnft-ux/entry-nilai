@@ -34,10 +34,10 @@ class FakeRange {
     }
     return out;
   }
-  getValue() { const m = this._slice(); return (m[0]||[])[0]; }
-  getValues() { return this._slice(); }
+  getValue() { RPC.getVals++; const m = this._slice(); return (m[0]||[])[0]; }
+  getValues() { RPC.getVals++; return this._slice(); }
   setValue(v) { this.sheet.ensureRows(this.r1, this.c1)[this.r1 - 1][this.c1 - 1] = v; }
-  setValues(vals) { for (let i = 0; i < vals.length; i++) for (let j = 0; j < vals[i].length; j++) this.sheet.ensureRows(this.r1 + i, this.c1 + j)[this.r1 + i - 1][this.c1 + j - 1] = vals[i][j]; }
+  setValues(vals) { RPC.setVals++; for (let i = 0; i < vals.length; i++) for (let j = 0; j < vals[i].length; j++) this.sheet.ensureRows(this.r1 + i, this.c1 + j)[this.r1 + i - 1][this.c1 + j - 1] = vals[i][j]; }
 }
 
 class FakeSheet {
@@ -50,14 +50,16 @@ class FakeSheet {
     if (typeof a === "number" && typeof b === "number") return new FakeRange(this, a, b, c ? a + c - 1 : a, d ? b + d - 1 : b);
     throw new Error("getRange(a1) not supported in mock");
   }
+  getDataRange() { return new FakeRange(this, 1, 1, Math.max(this.data.length, 1), Math.max(this.getLastColumn(), 1)); }
   appendRow(row) { this.data.push(row.slice()); return this; }
   deleteRow(r) { if (r >= 1 && r <= this.data.length) this.data.splice(r - 1, 1); }
 }
 
 const sheets = {};
+const RPC = { ss: 0, sheetObj: 0, getVals: 0, setVals: 0, appMetrics: 0 };
 function makeSpreadsheet() {
   return {
-    getSheetByName: (n) => sheets[n] || null,
+    getSheetByName: (n) => { RPC.sheetObj++; return sheets[n] || null; },
     insertSheet: (n) => { sheets[n] = new FakeSheet(n); return sheets[n]; },
     getSheets: () => Object.keys(sheets).map((k) => sheets[k])
   };
@@ -72,7 +74,7 @@ const propsStore = new Map();
 function freshState() { resetSheets(); cacheStore.clear(); propsStore.clear(); }
 
 const api = {
-  SpreadsheetApp: { getActiveSpreadsheet: makeSpreadsheet, openById: makeSpreadsheet },
+  SpreadsheetApp: { getActiveSpreadsheet: () => { RPC.ss++; return makeSpreadsheet(); }, openById: () => { RPC.ss++; return makeSpreadsheet(); } },
   CacheService: {
     getScriptCache: () => ({
       get: (k) => { const e = cacheStore.get(k); if (!e) return null; if (Date.now() >= e.exp) { cacheStore.delete(k); return null; } return e.v; },
@@ -323,6 +325,26 @@ console.log("\n[10] Permintaan tanpa action / tidak dikenal");
   ok("aksi tak dikenal → UNKNOWN_ACTION", ua.ok === false && ua.error.code === "UNKNOWN_ACTION");
   const lg = call("auth.logout", {}, token);
   ok("logout → done", lg.ok === true && lg.data.done === true);
+}
+
+console.log("\n[11] Ukur RPC per a konfig.save");
+{
+  const t0 = Date.now();
+  const fresh = pub("auth.verify", { pin: shaH("5678") });
+  token = fresh.data.token;
+  const snapshot = { ...RPC };   /* mulai ukur SETELAH login */
+  const resp = call("konfig.save", { entries: [{ group: "kelas", key: "9D", label: "9D" }] }, token);
+  const dt = {
+    sheetObj: RPC.sheetObj - snapshot.sheetObj,
+    getVals: RPC.getVals - snapshot.getVals,
+    setVals: RPC.setVals - snapshot.setVals,
+    ss: RPC.ss - snapshot.ss
+  };
+  const totalRpc = dt.sheetObj + dt.getVals + dt.setVals + dt.ss;
+  console.log("    resp konfig.save(9D): " + JSON.stringify(resp));
+  ok("konfig.save 1 kelas: total RPC sheet diturunkan (≤8, target ~5)", totalRpc <= 8 && resp.ok === true, JSON.stringify(dt));
+  ok("1x baca penuh sheet + 1x tulis append + log batch", dt.getVals >= 1 && dt.getVals <= 3 && dt.setVals >= 1 && dt.setVals <= 2, JSON.stringify(dt));
+  console.log("    RPC untuk tambah kelas: " + JSON.stringify(dt) + " (=~" + totalRpc + " panggilan ke Google API)");
 }
 
 console.log("\n==============================================");
