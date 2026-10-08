@@ -17,7 +17,7 @@
 /* ----------------------------------------------------------------------------
  * Konstanta & skema
  * ------------------------------------------------------------------------- */
-var APP_VERSION = '1.0.0';
+var APP_VERSION = '1.0.1';
 var TOKEN_TTL_SEC = 6 * 3600;                    /* CacheService maks 21600 dtk */
 var BATCH_SIZE = 200;
 var TZ = 'GMT';
@@ -247,6 +247,11 @@ function sheet_(name) {
 }
 
 function ensureSchema_() {
+  /* C-13: hindari RPC getSheets di tiap request — schema parenan v60 detik.
+   * Skema hanya berubah lewat kode ini; edit manual sheet terdeteksi di
+   * cache-miss berikutnya (maksimal 60 detik lebih lambat). */
+  try { if (cache_().get('SCHEMA_OK') === '1') return; } catch (e) {}
+
   var ss = spreadsheet_();
   var names = {};
   ss.getSheets().forEach(function (sh) { names[sh.getName()] = true; });
@@ -277,6 +282,7 @@ function ensureSchema_() {
       }
     }
   }
+  try { cache_().put('SCHEMA_OK', '1', 60); } catch (e) {}
 }
 
 function nowIso_() { return new Date().toISOString(); }
@@ -359,13 +365,26 @@ function readNilai_(kelas, jenis, kode) {
 }
 
 function readKonfig_() {
+  /* C-14: konfig jarang berubah — baca sekali dari sheet, cache 10 dtk.
+     Di-invalidate di setiap konfig.save/remove/deactivate agar write selalu
+     langsung terlihat oleh request berikutnya. */
+  try {
+    var cached = cache_().get('KONFIG_V1');
+    if (cached) return JSON.parse(cached);
+  } catch (e) {}
   var objs = readSheetObjects_('konfig');
   var byGroup = {};
   objs.forEach(function (e) {
     byGroup[e.group] = byGroup[e.group] || [];
     byGroup[e.group].push(e);
   });
-  return { list: objs, byGroup: byGroup };
+  var out = { list: objs, byGroup: byGroup };
+  try { cache_().put('KONFIG_V1', JSON.stringify(out), 10); } catch (e) {}
+  return out;
+}
+
+function invalidateKonfig_() {
+  try { cache_().remove('KONFIG_V1'); } catch (e) {}
 }
 
 function konfigEntry_(group, key) {
@@ -915,6 +934,7 @@ function actionKonfigSave_(p) {
       sh.getRange(rowIdx, 1, 1, headers.length).setValues([vals]);
     });
 
+    invalidateKonfig_();
     return { saved: upserts.length, skipped: skipped };
   } finally {
     lock.releaseLock();
@@ -966,6 +986,7 @@ function actionKonfigRemove_(p) {
     if (rowIdx < 0) throwApp_('NOT_FOUND', 'Entri tidak ditemukan.');
     sheet_('konfig').deleteRow(rowIdx);
     appendLog_('guru', 'DELETE', 'konfig', group + '/' + key, prev, null);
+    invalidateKonfig_();
     return { removed: true };
   } finally { lock.releaseLock(); }
 }
@@ -988,6 +1009,7 @@ function actionKonfigDeactivate_(p) {
     sh.getRange(rowIdx, 1, 1, headers.length).setValues([vals]);
     appendLog_('guru', 'DEACTIVATE', 'konfig', group + '/' + key, before,
                { group: group, key: key, aktif: false });
+    invalidateKonfig_();
     return { deactivated: true };
   } finally { lock.releaseLock(); }
 }

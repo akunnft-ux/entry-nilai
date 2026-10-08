@@ -76,10 +76,15 @@ Uji fungsional browser tercakup di §5.
 ## 4. Performance (NFR-003, respons < 3s)
 
 **CANNOT VERIFY** — tidak ada instance Apps Script berjalan di lingkungan ini.
-Estimasi dari kompleksitas: query per request paling berat = `rekap.get`
-(`O(siswa×nilai)` in-memory setelah 1× read sheet). Angka riil hanya bisa
-diukur setelah deploy (§5, langkah 6). Dikategorikan sebagai **Outstanding Gap**
-utk ditutup pasca-deploy.
+Optimisasi performa yang sudah dipasang `apps-script/Code.gs` v1.0.1 (kurangi
+RPC per request):
+1. `ensureSchema_` short-circuit di cache 60 dtk (`SCHEMA_OK`) — getSheets tidak
+   lagi dipanggil tiap request (sebelumnya di setiap request termasuk login).
+2. `readKonfig_` di-cache 10 dtk (`KONFIG_V1`), di-invalidate di
+   `konfig.save/remove/deactivate` — baca sheet konfig hanya sekali per 10dtk;
+   write tetap langsung terlihat.
+Setelah deploy ulang, ukur ulang (langkah NFR §5). Estimasi biaya tersisa per
+request: baca sheet (`siswa`/`nilai` saat validasi) + tulis + 1 log.
 
 ---
 
