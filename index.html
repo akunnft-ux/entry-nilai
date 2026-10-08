@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entry Nilai</title>
+<meta name="description" content="Aplikasi entry nilai ulangan harian, ujian semester, dan tugas harian.">
+<meta name="color-scheme" content="light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231f6feb'/%3E%3Ctext x='32' y='42' font-family='system-ui,sans-serif' font-size='30' font-weight='700' fill='%23fff' text-anchor='middle'%3EN%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/pages.css">
+</head>
+<body>
+<a class="skip-link" href="#view">Lewati ke konten</a>
+
+<header class="app-header" id="appHeader" hidden>
+  <div class="wrap header-inner">
+    <a class="brand" href="#/entry">
+      <span class="brand-mark" aria-hidden="true">N</span>
+      <span class="brand-name">Entry Nilai</span>
+    </a>
+
+    <nav class="nav" id="mainNav" aria-label="Navigasi utama">
+      <a class="nav-link" href="#/entry" data-route="entry">Entry</a>
+      <a class="nav-link" href="#/rekap" data-route="rekap">Rekap</a>
+      <a class="nav-link" href="#/siswa" data-route="siswa">Siswa</a>
+      <a class="nav-link" href="#/pengaturan" data-route="pengaturan">Pengaturan</a>
+    </nav>
+
+    <div class="header-right">
+      <span class="conn" id="connBadge" data-state="unknown" title="Status koneksi">
+        <span class="conn-dot" aria-hidden="true"></span>
+        <span class="conn-text">…</span>
+      </span>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">Keluar</button>
+    </div>
+  </div>
+</header>
+
+<main id="view" class="view" tabindex="-1"></main>
+
+<div id="toastRoot" class="toast-root" role="status" aria-live="polite" aria-label="Notifikasi"></div>
+<div id="modalRoot"></div>
+
+<noscript>
+  <div class="noscript">JavaScript harus diaktifkan untuk menggunakan aplikasi ini.</div>
+</noscript>
+
+<script src="js/config.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/store.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/pages/login.js"></script>
+<script src="js/pages/entry.js"></script>
+<script src="js/pages/rekap.js"></script>
+<script src="js/pages/siswa.js"></script>
+<script src="js/pages/pengaturan.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
