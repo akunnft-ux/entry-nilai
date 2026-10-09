@@ -345,8 +345,9 @@
       }
 
       function bindKonfigActions() {
-        var list = panel.querySelector(".konfig-list");
-        if (!list) return;
+        var lists = panel.querySelectorAll(".konfig-list");
+        if (!lists.length) return;
+        Array.prototype.forEach.call(lists, function (list) {
         list.addEventListener("click", function (e) {
           var btn = e.target.closest ? e.target.closest("button[data-kact]") : null;
           if (!btn) return;
@@ -398,6 +399,7 @@
                 });
             });
           }
+        });
         });
       }
 
