@@ -151,17 +151,19 @@
 
         var body = ui.table({
           cols: [
+            { key: "_no", label: "No", cls: "num", width: "52px" },
             { key: "nis", label: "NIS", cls: "num", width: "110px" },
             { key: "nama", label: "Nama" },
             { key: "kelas", label: "Kelas", width: "110px" },
             { key: "status", label: "Status", cls: "center", width: "110px" },
             { key: "_a", label: "Aksi", cls: "right", width: "150px" }
           ],
-          rows: rows.map(function (s) {
+          rows: rows.map(function (s, i) {
             return {
               id: s.id,
               cls: s.status === "nonaktif" ? "is-inactive" : "",
               data: {
+                _no: String((page - 1) * PAGE_SIZE + i + 1),
                 nis: ui.esc(s.nis || "—"),
                 nama: ui.esc(s.nama),
                 kelas: ui.esc(s.kelas),
