@@ -325,6 +325,22 @@ Depth classification: **Core** = langsung melayani BO utama (full depth); **Supp
 
 ---
 
+### FR-010 — Impor/Ekspor CSV Siswa *(Supporting)*
+
+- **Description:** Halaman Siswa menyediakan **Unduh template CSV** (`nis,nama,kelas,status`, plus 2 baris contoh) dan **Impor CSV**: guru mengunggah file, aplikasi menampilkan **pratinjau** (jumlah baru/diperbarui/dilewati + alasan), lalu menyimpan setelah konfirmasi. Import mengirim lewat action yang sudah ada (`siswa.save`) dan **update siswa yang NIS-nya sama** (NIS sebagai kunci bisnis), bukannya membuat duplikat.
+- **Business Purpose:** BO-001/BO-005 — memasukkan data satu kelas sekaligus, bukan satu per satu; menghindari pengetikan ulang nama yang sudah ada.
+- **Traces to:** BO-001, BO-005
+- **Inputs:** file `.csv` ber-encoding UTF-8, header minimal `nama` + `kelas` (opsional `nis`, `status`).
+- **Outputs:** pratinjau pra-simpan; ringkasan hasil `{ditambahkan, diperbarui, dilewati[]}`.
+- **Validation Rules:** sama dengan FR-002 — `nama` 2–80 char tanpa karakter kontrol; `kelas` wajib terdaftar di master; `status ∈ {aktif, nonaktif}` (kosong → `aktif`); `nis` opsional ≤32 char dan unik case-insensitive (ganda dalam file → baris dilewati). Baris tidak valid tidak menggagalkan baris valid lainnya.
+- **Permissions:** `GURU` + token valid (via `siswa.save`).
+- **Error Handling:** header wajib hilang / file kosong / file >1 MB → banner error, tidak ada tulisan; kegagalan jaringan di tengah batch → tombol **Lanjutkan** melanjutkan dari chunk terakhir; baris bermasalah dilaporkan pada `skipped[]`.
+- **Dependencies:** FR-002 (validasi & penyimpanan), transparan terhadap backend (tanpa action baru).
+
+**AC-010:** *Given* file CSV berisi 30 baris (2 di antaranya NIS sudah ada dan 1 baris kelas tidak dikenal), *when* guru mengunggah lalu mengonfirmasi pratinjau, *then* 27 siswa baru ditambahkan, 2 siswa diperbarui, 1 baris dilaporkan `skipped` beserta alasan kelas, dan daftar siswa memuat hasil terbaru.
+
+---
+
 ## 9. Non-Functional Requirements
 
 | ID | Category | Requirement | Target (measurable) | Traces to |
@@ -694,7 +710,7 @@ Legal: nilai siswa adalah data pendidikan → akses dibatasi ke pemegang PIN sek
 | Phase | Scope | Deliverable |
 |---|---|---|
 | **Phase 1 — MVP** | FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007 (kelas/jenis/kode), FR-009 | Aplikasi siap dipakai guru |
-| **Phase 2 — Hardening** | FR-008 (ganti PIN di UI), rate-limit penuh, log UI, dokumentasi deploy, panduan rollback | Siap produksi sekolah |
+| **Phase 2 — Hardening** | FR-008 (ganti PIN di UI), **FR-010 (impor/Ekspor CSV siswa)**, rate-limit penuh, log UI, dokumentasi deploy, panduan rollback | Siap produksi sekolah |
 | **Phase 3 — Rilis resmi** | QA penuh, security review, deploy GitHub Pages | `READY FOR PRODUCTION` |
 | Future | Lihat Section 30 | — |
 

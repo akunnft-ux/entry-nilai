@@ -22,6 +22,7 @@ Panduan pengembangan lengkap: [`docs/prd.md`](docs/prd.md) → [`docs/architectu
 | 5 | Master Kelas / Jenis / Kode penilaian (bisa diedit guru) | FR-007 |
 | 6 | Ganti PIN | FR-008 |
 | 7 | Log aktivitas (audit trail append-only) | FR-009 |
+| 8 | Impor/Ekspor siswa via CSV (unduh template + pratinjau impor) | FR-010 |
 
 ---
 
@@ -34,6 +35,7 @@ entry-nilai/
 ├─ js/
 │  ├─ config.js            EXEC_URL + konstanta (satu-satunya titik deploy)
 │  ├─ ui.js                komponen UI reusable
+│  ├─ csv.js               parser CSV + pemetaan impor siswa (FR-010)
 │  ├─ store.js             localStorage: meta cache, draft, sesi
 │  ├─ api.js               transport POST text/plain → fallback JSONP (ADR-002)
 │  ├─ auth.js              SHA-256 (Web Crypto + fallback), sesi, guard
@@ -88,6 +90,8 @@ Semua respons berbentuk envelope:
 | `settings.changePin` | token | `{oldPin, newPin}` (keduanya sudah sha256) |
 
 **Aturan nilai:** baris yang dikosongkan dikirim sebagai `nilai: null` = **hapus record** (FR-004). Validasi server otoritatif: skor 0–100 maks 1 desimal, NIS unik case-insensitive, kunci bisnis nilai `(siswa_id, kelas, jenis, kode)` di-upsert.
+
+**Impor siswa (FR-010)** memakai `siswa.save` yang sama — template CSV `nis,nama,kelas,status` diunduh dari halaman Siswa, dipratinjau sebelum disimpan, dan NIS yang sudah ada diperbarui (bukan digandakan). Tidak ada action backend baru.
 
 ---
 

@@ -193,6 +193,7 @@ Aturan: tab aktif = tebal + underline `--primary`; nav menjadi **scrollable hori
 |---|---|
 | Form fields | `NIS` (opsional) · `Nama` (wajib, helper "2–80 karakter") · `Kelas` (select) · `Status` (select) |
 | Tombol | `primary` "Simpan siswa" · saat edit: "Simpan perubahan" + `ghost` "Batal" |
+| Impor/Ekspor | `secondary` "Unduh template CSV" · `secondary` "Impor CSV" (input file tersembunyi) · pratinjau via `banner warn` (jumlah baru/diperbarui/dilewati + `[Simpan] [Batal]`) |
 | Tabel daftar | `NIS` · `NAMA` · `KELAS` · `STATUS` (badge) · `AKSI` (Ubah = ghost, Nonaktifkan = danger ghost) |
 | Filter | `[Kelas ▾] [Status: Semua/Aktif/Nonaktif]` + pencarian `Nama/NIS` (debounce 200 ms) |
 | Konfirmasi | modal sebelum nonaktifkan: "Nonaktifkan **Bella Sari**? Nilai yang sudah ada tetap tersimpan." → `[Batal] [Nonaktifkan]` |
@@ -233,6 +234,13 @@ Aturan: tab aktif = tebal + underline `--primary`; nav menjadi **scrollable hori
 | `banner(type, html)` | `error\|warn\|success` inline | entry, siswa |
 | `spinner(size)` | inline / full-page | semua |
 | `fmtNilai(n)` / `parseNilai(str)` | format & parse `75,5` → `75.5` | entry, rekap |
+
+`js/csv.js` menyediakan impor siswa (FR-010):
+
+| Component | API singkat | Dipakai di |
+|---|---|---|
+| `App.csv.parse(text)` | CSV RFC-4180 → `Array<Array<String>>` (quote, escaped quote, CRLF, BOM) | siswa |
+| `App.csv.mapSiswa(rows, kelasList, existing)` | `{header, records, invalid, stats, error?}` — validasi baris + update-by-NIS | siswa |
 
 ---
 

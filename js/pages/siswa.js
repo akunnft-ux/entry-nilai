@@ -11,6 +11,11 @@
       root.innerHTML =
         '<div class="page-head">' +
           "<div><h1>Data Siswa</h1><p>Kelola daftar siswa per kelas. Siswa dinonaktifkan tidak dihapus — riwayat nilainya tetap aman.</p></div>" +
+          '<div class="row">' +
+            '<button class="btn btn-secondary" id="btnTemplate" type="button">Unduh template CSV</button>' +
+            '<button class="btn btn-secondary" id="btnImport" type="button">Impor CSV</button>' +
+            '<input type="file" id="fileImport" accept=".csv,text/csv,application/vnd.ms-excel" hidden>' +
+          "</div>" +
         "</div>" +
         '<div id="siswaBanner"></div>' +
         '<div class="siswa-layout">' +
@@ -64,10 +69,14 @@
       var elSearch = document.getElementById("sSearch");
       var elCount = document.getElementById("sCount");
       var elBanner = document.getElementById("siswaBanner");
+      var btnTemplate = document.getElementById("btnTemplate");
+      var btnImport = document.getElementById("btnImport");
+      var fileImport = document.getElementById("fileImport");
 
       var meta = null;
       var all = [];
       var searchTimer = null;
+      var importJob = null;   /* { records, offset, prog } */
 
       /* ---------------- helpers ---------------- */
       function kelasOptions(includeAll) {
@@ -210,6 +219,145 @@
         });
       }
 
+      /* ---------------- impor CSV (FR-010) ---------------- */
+      function downloadTemplate() {
+        var rows = [
+          ["nis", "nama", "kelas", "status"],
+          ["1001", "Ahmad Fauzi", "7A", "aktif"],
+          ["1002", "Budi Santoso", "7A", "aktif"]
+        ];
+        try {
+          ui.downloadCsv("template-siswa.csv", rows);
+          ui.toast("Template diunduh. Isi datanya lalu impor kembali.", "success");
+        } catch (e) {
+          ui.toast("Browser memblokir unduhan. Izinkan download untuk situs ini.", "error");
+        }
+      }
+
+      function rowsHtml(items, fmt) {
+        if (!items || !items.length) return "";
+        var shown = items.slice(0, 10);
+        var extra = items.length - shown.length;
+        return '<div style="margin-top:8px;font-size:12px">' +
+          shown.map(function (it) { return "• " + fmt(it); }).join("<br>") +
+          (extra > 0 ? "<br>… dan " + extra + " baris lain" : "") +
+        "</div>";
+      }
+
+      function renderImportPreview(mapped) {
+        if (mapped.error === "HEADER_INVALID") {
+          elBanner.innerHTML = ui.banner("error", "Header tidak sesuai",
+            "Kolom wajib <b>nama</b> dan <b>kelas</b> tidak ditemukan. Unduh template untuk contoh format.");
+          return;
+        }
+        if (mapped.error === "FILE_KOSONG") {
+          elBanner.innerHTML = ui.banner("error", "File kosong", "Tidak ada baris yang bisa dibaca.");
+          return;
+        }
+
+        var s = mapped.stats;
+        var total = s.baru + s.update;
+        var invalidHtml = rowsHtml(mapped.invalid, function (r) {
+          return "Baris " + r.line + ": " + ui.esc(r.nama || "-") + " — " + ui.esc(r.reason);
+        });
+
+        if (!total) {
+          elBanner.innerHTML = ui.banner("error", "Tidak ada baris valid",
+            ui.esc(s.invalid) + " baris tidak valid." + invalidHtml);
+          return;
+        }
+
+        elBanner.innerHTML = ui.banner("warn", "Pratinjau impor",
+          s.baris + " baris dibaca: <b>" + s.baru + "</b> siswa baru, <b>" + s.update + "</b> diperbarui" +
+          (s.invalid ? ", <b>" + s.invalid + "</b> dilewati" : "") + "." + invalidHtml,
+          '<button class="btn btn-primary btn-sm" id="impConfirm" type="button">Simpan ' + total + " baris</button>" +
+          '<button class="btn btn-ghost btn-sm" id="impCancel" type="button">Batal</button>');
+
+        var ok = document.getElementById("impConfirm");
+        if (ok) ok.addEventListener("click", function () {
+          importJob = { records: mapped.records.slice(), offset: 0,
+                        prog: { saved: 0, inserted: 0, updated: 0, skipped: [] } };
+          doImport();
+        });
+        var no = document.getElementById("impCancel");
+        if (no) no.addEventListener("click", function () { elBanner.innerHTML = ""; });
+      }
+
+      function handleFile(file) {
+        if (!file) return;
+        elBanner.innerHTML = "";
+        importJob = null;
+        if (file.size > 1024 * 1024) {
+          elBanner.innerHTML = ui.banner("error", "File terlalu besar",
+            "Maksimum 1 MB. Bagi data menjadi beberapa file lalu impor satu per satu.");
+          return;
+        }
+        var reader = new FileReader();
+        reader.onload = function () {
+          var rows;
+          try { rows = App.csv.parse(String(reader.result || "")); }
+          catch (e) {
+            elBanner.innerHTML = ui.banner("error", "Gagal membaca file", "Pastikan file berformat CSV.");
+            return;
+          }
+          renderImportPreview(App.csv.mapSiswa(rows, (meta && meta.kelas) || [], all));
+        };
+        reader.onerror = function () {
+          elBanner.innerHTML = ui.banner("error", "Gagal membaca file", "Coba lagi atau gunakan file lain.");
+        };
+        reader.readAsText(file, "UTF-8");
+      }
+
+      function importBatch(job) {
+        var chunk = job.records.slice(job.offset, job.offset + App.config.BATCH_SIZE);
+        if (!chunk.length) return Promise.resolve();
+        return App.api.call("siswa.save", { records: chunk }).then(function (res) {
+          job.prog.saved += (res && res.saved) || 0;
+          job.prog.inserted += (res && res.inserted) || 0;
+          job.prog.updated += (res && res.updated) || 0;
+          (res && res.skipped ? res.skipped : []).forEach(function (x) { job.prog.skipped.push(x); });
+          job.offset += App.config.BATCH_SIZE;
+          return importBatch(job);
+        });
+      }
+
+      function doImport() {
+        if (!importJob) return;
+        var job = importJob;
+        elBanner.innerHTML = ui.banner("warn", "Mengimpor…",
+          "Menyimpan " + job.records.length + " baris, mohon tunggu.");
+
+        importBatch(job).then(function () {
+          importJob = null;
+          load();
+          var msg = job.prog.inserted + " ditambahkan, " + job.prog.updated + " diperbarui";
+          if (job.prog.skipped.length) {
+            elBanner.innerHTML = ui.banner("warn", "Impor selesai sebagian",
+              ui.esc(msg) + " · " + job.prog.skipped.length + " dilewati" +
+              rowsHtml(job.prog.skipped, function (r) {
+                return ui.esc(r.nama || r.nis || r.id || "-") + " — " + ui.esc(r.message || r.reason || "dilewati");
+              }));
+            ui.toast("Impor selesai, " + job.prog.skipped.length + " dilewati", "warn");
+          } else {
+            elBanner.innerHTML = ui.banner("success", "Impor selesai", ui.esc(msg) + ".");
+            ui.toast(msg, "success");
+            setTimeout(function () {
+              if (elBanner.querySelector(".banner-success")) elBanner.innerHTML = "";
+            }, 5000);
+          }
+        }).catch(function (e) {
+          elBanner.innerHTML = ui.banner("error", "Impor gagal",
+            ui.esc(ui.friendlyError(e)) + "<br>" + job.prog.inserted + " ditambahkan, " +
+            job.prog.updated + " diperbarui sebelum gagal.",
+            '<button class="btn btn-secondary btn-sm" id="impRetry" type="button">Lanjutkan</button>' +
+            '<button class="btn btn-ghost btn-sm" id="impAbort" type="button">Batal</button>');
+          var r = document.getElementById("impRetry");
+          if (r) r.addEventListener("click", doImport);
+          var a = document.getElementById("impAbort");
+          if (a) a.addEventListener("click", function () { importJob = null; elBanner.innerHTML = ""; });
+        });
+      }
+
       form.addEventListener("submit", function (e) {
         e.preventDefault();
         formError.innerHTML = "";
@@ -280,6 +428,12 @@
       });
       elKelasFilter.addEventListener("change", renderTable);
       elStatus.addEventListener("change", renderTable);
+
+      btnTemplate.addEventListener("click", downloadTemplate);
+      btnImport.addEventListener("click", function () { fileImport.value = ""; fileImport.click(); });
+      fileImport.addEventListener("change", function () {
+        handleFile(fileImport.files && fileImport.files[0]);
+      });
 
       /* ---------------- boot ---------------- */
       setKelasSelect(elKelasFilter, true);

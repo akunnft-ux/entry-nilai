@@ -34,6 +34,7 @@ buKti (file/docs/tests), bukan klaim.
 |---|---|---|
 | Spesifikasi layout 4 halaman | PASS | `docs/ui-spec.md` (source-of-truth, gap pencil.dev tercatat) |
 | Konsistensi komponen & empty-state | PASS | `js/ui.js`; `docs/code-review.md` (§UI) |
+| Impor/Ekspor CSV siswa (FR-010) | PASS | `js/csv.js`; `js/pages/siswa.js`; `docs/ui-spec.md` P4 |
 
 ## Implementation
 | Item | Status | Bukti |
@@ -46,7 +47,8 @@ buKti (file/docs/tests), bukan klaim.
 ## QA
 | Item | Status | Bukti |
 |---|---|---|
-| Tes fungsional backend (harness) | PASS | `test/run_backend_tests.js` → **55 PASS / 0 FAIL** |
+| Tes fungsional backend (harness) | PASS | `test/run_backend_tests.js` → **57 PASS / 0 FAIL** |
+| Tes unit parser & mapping CSV (FR-010) | PASS | `test/run_csv_tests.js` → **22 PASS / 0 FAIL** |
 | Bug yang ditemukan & diperbaiki | PASS | `docs/qa-test-plan.md` §2 (4 bug nyata) |
 | Test plan E2E + NFR-003 | CANNOT VERIFY | butuh deploy Google; `docs/qa-test-plan.md` §4–5 |
 
