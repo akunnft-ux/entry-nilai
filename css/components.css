@@ -305,6 +305,14 @@ tr.is-inactive td { color: var(--text-muted); }
 .grow { flex: 1 1 auto; min-width: 0; }
 .right { margin-left: auto; }
 
+/* ---------- pager ---------- */
+.pager { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
+  flex-wrap: wrap; padding: var(--sp-3) var(--sp-2) 0; margin-top: var(--sp-2);
+  border-top: 1px solid var(--border); }
+.pager-info { color: var(--text-muted); font-size: var(--fs-xs); }
+.pager-btns { display: flex; align-items: center; gap: var(--sp-2); }
+.pager-page { font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; }
+
 @media (max-width: 640px) {
   .btn { height: 40px; }
   .btn-sm { height: 34px; }

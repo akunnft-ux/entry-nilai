@@ -77,6 +77,8 @@
       var all = [];
       var searchTimer = null;
       var importJob = null;   /* { records, offset, prog } */
+      var PAGE_SIZE = 25;
+      var page = 1;
 
       /* ---------------- helpers ---------------- */
       function kelasOptions(includeAll) {
@@ -139,8 +141,13 @@
       }
 
       function renderTable() {
-        var rows = filtered();
-        elCount.textContent = rows.length + " siswa ditampilkan";
+        var rowsAll = filtered();
+        var total = rowsAll.length;
+        var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        if (page > pages) page = pages;
+        if (page < 1) page = 1;
+        var rows = rowsAll.slice((page - 1) * PAGE_SIZE, (page - 1) * PAGE_SIZE + PAGE_SIZE);
+        elCount.textContent = total + " siswa ditampilkan";
 
         var body = ui.table({
           cols: [
@@ -179,7 +186,7 @@
           }
         });
 
-        elTable.innerHTML = body;
+        elTable.innerHTML = body + ui.pager({ page: page, pageSize: PAGE_SIZE, total: total });
       }
 
       /* ---------------- form ---------------- */
@@ -404,6 +411,12 @@
       btnReset.addEventListener("click", resetForm);
 
       elTable.addEventListener("click", function (e) {
+        var pgBtn = e.target.closest ? e.target.closest("button[data-page]") : null;
+        if (pgBtn) {
+          var n = parseInt(pgBtn.getAttribute("data-page"), 10);
+          if (n && n !== page) { page = n; renderTable(); }
+          return;
+        }
         var btn = e.target.closest ? e.target.closest("button[data-act]") : null;
         if (!btn) return;
         var id = btn.getAttribute("data-id");
@@ -422,12 +435,13 @@
         }
       });
 
+      function onFilterChange() { page = 1; renderTable(); }
       elSearch.addEventListener("input", function () {
         if (searchTimer) clearTimeout(searchTimer);
-        searchTimer = setTimeout(renderTable, 200);
+        searchTimer = setTimeout(onFilterChange, 200);
       });
-      elKelasFilter.addEventListener("change", renderTable);
-      elStatus.addEventListener("change", renderTable);
+      elKelasFilter.addEventListener("change", onFilterChange);
+      elStatus.addEventListener("change", onFilterChange);
 
       btnTemplate.addEventListener("click", downloadTemplate);
       btnImport.addEventListener("click", function () { fileImport.value = ""; fileImport.click(); });

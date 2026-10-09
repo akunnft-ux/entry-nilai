@@ -230,11 +230,19 @@
             '<div id="logBody">' + ui.skeleton(8, [130, 90, 90, 160, 160]) + "</div>" +
           "</div>";
 
-        function load() {
-          var body = document.getElementById("logBody");
-          App.api.call("log.list", { limit: 200 }).then(function (d) {
+        var body = document.getElementById("logBody");
+        var PAGE_SIZE = 50;
+        var page = 1;
+
+        function load(pg) {
+          if (pg) page = pg;
+          var offset = (page - 1) * PAGE_SIZE;
+          body.innerHTML = ui.skeleton(8, [130, 90, 90, 160, 160]);
+          return App.api.call("log.list", { limit: PAGE_SIZE, offset: offset }).then(function (d) {
             var rows = (d && d.entries) || [];
+            var total = (d && typeof d.total === "number") ? d.total : rows.length;
             if (!rows.length) {
+              if (total > 0 && page > 1) { page = page - 1; return load(); }
               body.innerHTML = ui.emptyState({
                 title: "Belum ada aktivitas",
                 body: "Setiap perubahan nilai, siswa, dan konfigurasi akan tercatat di sini."
@@ -264,14 +272,21 @@
                 };
               }),
               empty: { title: "Belum ada aktivitas" }
-            });
+            }) + ui.pager({ page: page, pageSize: PAGE_SIZE, total: total });
           }).catch(function (e) {
             body.innerHTML = ui.banner("error", "Gagal memuat log", ui.esc(ui.friendlyError(e)));
           });
         }
 
-        document.getElementById("btnLogReload").addEventListener("click", load);
-        load();
+        body.addEventListener("click", function (e) {
+          var pgBtn = e.target.closest ? e.target.closest("button[data-page]") : null;
+          if (!pgBtn) return;
+          var n = parseInt(pgBtn.getAttribute("data-page"), 10);
+          if (n && n !== page) load(n);
+        });
+
+        document.getElementById("btnLogReload").addEventListener("click", function () { load(1); });
+        load(1);
       }
 
       function trunc(s) {

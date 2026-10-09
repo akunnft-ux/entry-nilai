@@ -47,7 +47,7 @@ buKti (file/docs/tests), bukan klaim.
 ## QA
 | Item | Status | Bukti |
 |---|---|---|
-| Tes fungsional backend (harness) | PASS | `test/run_backend_tests.js` → **57 PASS / 0 FAIL** |
+| Tes fungsional backend (harness) | PASS | `test/run_backend_tests.js` → **60 PASS / 0 FAIL** |
 | Tes unit parser & mapping CSV (FR-010) | PASS | `test/run_csv_tests.js` → **22 PASS / 0 FAIL** |
 | Bug yang ditemukan & diperbaiki | PASS | `docs/qa-test-plan.md` §2 (4 bug nyata) |
 | Test plan E2E + NFR-003 | CANNOT VERIFY | butuh deploy Google; `docs/qa-test-plan.md` §4–5 |

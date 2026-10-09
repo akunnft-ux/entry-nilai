@@ -25,7 +25,7 @@ App.backend = (function () {
     "write":              { scope: "session",              n: 30, win: 60 },
     "read":               { scope: "session",              n: 60, win: 60 },
     "rekap":              { scope: "session",              n: 30, win: 60 },
-    "log":                { scope: "session",              n: 10, win: 60 }
+    "log":                { scope: "session",              n: 60, win: 60 }
   };
 
   function AppError(code, message, opt) {
@@ -606,12 +606,16 @@ App.backend = (function () {
 
     async function actionLogList(p) {
       var limit = Math.min(parseInt((p && p.limit) || 200, 10) || 200, 200);
-      var rows = await db.all("SELECT ts, actor, action, entity, entity_id, before, after, request_id FROM log ORDER BY id DESC LIMIT ?", [limit]);
+      if (limit < 1) limit = 1;
+      var offset = Math.max(parseInt((p && p.offset) || 0, 10) || 0, 0);
+      var totalRows = await db.all("SELECT COUNT(*) AS n FROM log", []);
+      var total = totalRows && totalRows[0] ? Number(totalRows[0].n) || 0 : 0;
+      var rows = await db.all("SELECT ts, actor, action, entity, entity_id, before, after, request_id FROM log ORDER BY id DESC LIMIT ? OFFSET ?", [limit, offset]);
       var entries = rows.map(function (o) {
         return { ts: o.ts, actor: o.actor, action: o.action, entity: o.entity, entity_id: o.entity_id,
           before: o.before || "", after: o.after || "", request_id: o.request_id || "" };
       });
-      return { entries: entries };
+      return { entries: entries, total: total, limit: limit, offset: offset };
     }
 
     async function actionChangePin(p, sess) {

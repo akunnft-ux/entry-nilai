@@ -254,9 +254,17 @@ function pub(action, payload) { return call(action, payload, null); }
   {
     const l = await call("log.list", {}, token);
     ok("log.list → entries", l.ok === true && l.data.entries.length > 0, JSON.stringify(l.data.entries.length));
+    ok("log.list → total numerik", l.ok === true && typeof l.data.total === "number" && l.data.total >= l.data.entries.length, JSON.stringify(l.data.total));
     const acts = l.data.entries.map((e) => e.action);
     ok("entri log punya before/after JSON", l.data.entries[0].hasOwnProperty("before") && l.data.entries[0].hasOwnProperty("after"));
     ok("log berisi aksi penting", ["LOGIN_OK", "INSERT", "UPDATE", "DELETE", "DEACTIVATE", "CONFIG_SAVE"].some((a) => acts.includes(a)), acts.slice(0, 10).join(","));
+
+    const p1 = await call("log.list", { limit: 2, offset: 0 }, token);
+    const p2 = await call("log.list", { limit: 2, offset: 2 }, token);
+    ok("log.list paginasi → total konsisten", p1.ok === true && p2.ok === true && p1.data.total === p2.data.total);
+    ok("log.list offset menggeser hasil",
+      (p1.data.entries[0] || {}).request_id !== (p2.data.entries[0] || {}).request_id,
+      JSON.stringify({ a: (p1.data.entries[0] || {}).request_id, b: (p2.data.entries[0] || {}).request_id }));
   }
 
   console.log("\n[9] Ganti PIN");

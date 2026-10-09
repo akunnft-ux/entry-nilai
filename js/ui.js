@@ -288,11 +288,33 @@ App.ui = (function () {
     }
   }
 
+  /* ---------------- pager ---------------- */
+  function pager(opts) {
+    opts = opts || {};
+    var pageSize = opts.pageSize || 25;
+    var total = opts.total || 0;
+    var pages = Math.max(1, Math.ceil(total / pageSize));
+    var page = Math.min(Math.max(1, opts.page || 1), pages);
+    if (total <= pageSize) return "";
+    var from = (page - 1) * pageSize + 1;
+    var to = Math.min(page * pageSize, total);
+    return '<nav class="pager" aria-label="Navigasi halaman">' +
+      '<span class="pager-info">' + from + "–" + to + " dari " + total + "</span>" +
+      '<div class="pager-btns">' +
+        '<button class="btn btn-secondary btn-sm" type="button" data-page="' + (page - 1) + '"' +
+          (page > 1 ? "" : " disabled") + ">‹ Sebelumnya</button>" +
+        '<span class="pager-page">Halaman ' + page + " / " + pages + "</span>" +
+        '<button class="btn btn-secondary btn-sm" type="button" data-page="' + (page + 1) + '"' +
+          (page < pages ? "" : " disabled") + ">Berikutnya ›</button>" +
+      "</div>" +
+    "</nav>";
+  }
+
   return {
     esc: esc, el: el,
     parseNilai: parseNilai, fmtNilai: fmtNilai,
     toast: toast, confirm: confirm, field: field, banner: banner,
-    skeleton: skeleton, emptyState: emptyState, table: table,
+    skeleton: skeleton, emptyState: emptyState, table: table, pager: pager,
     toCsv: toCsv, downloadCsv: downloadCsv,
     friendlyError: friendlyError, busy: busy
   };
