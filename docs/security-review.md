@@ -6,6 +6,18 @@ Penilai: skill `security-auditor-pro` · Basis bukti: baca kode `apps-script/Cod
 
 ---
 
+> ## ⚠️ Pembaruan v2.0.0 — model keamanan berubah (publik token)
+>
+> Aplikasi kini memakai Turso (libSQL) langsung dari browser tanpa server
+> aplikasi. **Token database tertanam di `js/config.js` = publik.** Siapa pun
+> yang memiliki URL halaman dapat membaca/menulis database. Ini **keputusan
+> yang disadari** untuk pemakaian pribadi satu pengguna (prioritas: kecepatan
+> & sinkronisasi HP+laptop, tanpa server). Review di bawah (berbasis Apps
+> Script) tetap valid untuk bagian lain (validasi input, output escaping,
+> proteksi integritas, audit log) karena logika divalidasi ulang di
+> `js/backend/engine.js`. Untuk skenario multi-user, wajib pindah ke
+> proxy/Worker yang menyimpan token di sisi server.
+
 ## 1. Security Overview
 
 Aplikasi client (HTML/JS/CS murni di GitHub Pages) berbicara ke Web App

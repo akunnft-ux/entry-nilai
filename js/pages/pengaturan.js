@@ -189,7 +189,7 @@
                 '<div class="row-between"><span class="muted">Nama aplikasi</span><span>' + ui.esc(App.config.APP_NAME) + "</span></div>" +
                 '<div class="row-between"><span class="muted">Versi frontend</span><span class="num">' + ui.esc(App.config.VERSION) + "</span></div>" +
                 '<div class="row-between"><span class="muted">URL backend</span><span class="muted" style="font-size:12px">' +
-                  ui.esc(App.config.EXEC_URL ? "terhubung" : "belum diatur") + "</span></div>" +
+                  ui.esc(App.config.TURSO_URL ? "terhubung" : "belum diatur") + "</span></div>" +
               "</div>" +
             "</div>" +
           "</div>";

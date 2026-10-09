@@ -1,6 +1,7 @@
 /* ============================================================
  * config.js — satu-satunya tempat konfigurasi deploy.
  * ADR-001: tanpa bundler, tanpa env vars (GitHub Pages).
+ * Arsitektur: browser langsung ke Turso (libSQL) via HTTP pipeline.
  * ============================================================ */
 window.App = window.App || {};
 
@@ -13,41 +14,30 @@ App.registerPage = function (name, definition) {
 };
 
 App.config = {
+  /** Endpoint database Turso (hostname tanpa skema path). */
+  TURSO_URL: "https://entry-nilai-akunnft-ux.aws-ap-southeast-2.turso.io",
+
   /**
-   * WAJIB DIGANTI setelah deploy Google Apps Script.
-   * Format: https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec
-   * Cara mendapatkannya: lihat docs/deployment.md langkah 5.
-   * Biarkan string kosong ("") bila belum di-deploy — aplikasi akan
-   * menampilkan wizard setup, bukan error tak terbaca.
+   * Token database Turso (permission: full-access, non-expiring).
+   * CATATAN KEAMANAN: token ini PUBLIK — siapa pun yang memiliki halaman
+   * ini dapat membaca/menulis database. Aplikasi ini dirancang untuk
+   * pemakaian pribadi satu pengguna.
    */
-  EXEC_URL: "https://script.google.com/macros/s/AKfycbyh1Z6IUPiH3DfijUL7Qjep8_C6o_8rEzX781GeA7VsFQIGlYMJWjwPzD-_UskpQW1G/exec",
+  TURSO_TOKEN: "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTE1NDQxODMsImlkIjoiMDFhMTIwNWEtYzAwMS03MjQxLWFlNzMtMDY1ZGIzZWI0ZTI5Iiwia2lkIjoiOHF1N01mYnhjSnZxdVFpYXlJZEd5U2k1MEViOWNUX1IwNFVzbWZUQlY3MCIsInJpZCI6IjdkOGQ5ZGI0LWQ0OGYtNGU3Mi05MWExLWYxYTRjNzZmY2EyMiJ9.OStxCWvZ2b_MHpZQiBiL7U5PFX_WpXzVdHVOH3L1WZWe_an5ykPmR1AVtHKITpp1T9feLSi-N5enw43fVgeMAg",
 
   APP_NAME: "Entry Nilai",
-  VERSION: "1.0.0",
+  VERSION: "2.0.0",
 
   /** Batas record per request (FR-004 / EC-10). */
   BATCH_SIZE: 200,
 
-  /** Timeout 1 request dalam ms. */
+  /** Timeout 1 request HTTP ke Turso (ms). */
   TIMEOUT_MS: 15000,
 
-  /**
-   * TTL sesi token (jam). Dibatasi CacheService Google (maks 6 jam).
-   * PRD §21 SEC-004 — didepresikan dari 8 jam → 6 jam oleh batasan platform.
-   */
+  /** TTL sesi token (jam). Tanpa batas platform — dijaga oleh klien + tabel. */
   TOKEN_TTL_HOURS: 6,
 
-  /**
-   * Transport cadangan JSONP (ADR-002). Aktif bila fetch POST gagal
-   * dibaca karena kebijakan CORS. Matikan ("false") bila Anda ingin
-   * menonaktifkan fallback yang menaruh token di query string.
-   */
-  ALLOW_JSONP_FALLBACK: true,
-
-  /** Panjang maksimum payload JSONP (batas panjang URL). */
-  JSONP_MAX_PAYLOAD: 8000,
-
-  /** Retry otomatis sebelum fallback transport. */
+  /** Retry otomatis untuk error jaringan/timeout. */
   RETRY_TIMES: 3,
 
   /** Debounce penyimpanan draft (ms). */

@@ -98,12 +98,12 @@ App.state = { dirty: false, ready: false };
     setConn("unknown", "…");
     return App.api.ping().then(function (data) {
       var ok = data && data.sheetOk !== false;
-      setConn(ok ? "online" : "offline", ok ? "Terhubung" : "Sheet siap");
+      setConn(ok ? "online" : "offline", ok ? "Terhubung" : "Database siap");
       if (!ok) {
-        App.ui.toast("Terhubung ke Apps Script, tetapi spreadsheet belum siap.", "warn");
+        App.ui.toast("Terhubung ke database, tetapi skema belum siap.", "warn");
       }
       if (data && data.pinConfigured === false && currentRoute() !== "login") {
-        App.ui.toast("PIN belum dikonfigurasi — selesaikan setup di Apps Script.", "warn");
+        App.ui.toast("PIN belum dikonfigurasi.", "warn");
       }
       return ok;
     }).catch(function (e) {
@@ -160,7 +160,7 @@ App.state = { dirty: false, ready: false };
     }, 30 * 60 * 1000);
   }
 
-  /* ---------------- wizard setup (EXEC_URL belum diisi) ---------------- */
+  /* ---------------- wizard setup (Turso belum diisi) ---------------- */
   function renderSetupWizard() {
     if (header) header.hidden = true;
     document.title = "Setup · " + App.config.APP_NAME;
@@ -168,18 +168,15 @@ App.state = { dirty: false, ready: false };
       '<div class="login-page"><div class="login-card">' +
         '<div class="login-brand"><span class="brand-mark" aria-hidden="true">N</span>' +
           '<span class="login-title" style="font-size:20px">Entry Nilai</span></div>' +
-        '<div class="login-title">Langkah 1 dari 2</div>' +
-        '<p class="login-sub">Aplikasi belum terhubung ke Google Sheets. Selesaikan dua langkah singkat berikut.</p>' +
-        App.ui.banner("info", "1. Deploy backend Google Apps Script",
-          "Buka <code>apps-script/Code.gs</code>, ikuti <code>docs/deployment.md</code>, lalu salin URL yang berakhiran <code>/exec</code>.") +
-        App.ui.banner("info", "2. Tempel URL tersebut di <code>js/config.js</code>",
-          'Cari baris <code>EXEC_URL: ""</code> lalu isi dengan URL hasil langkah 1, dan muat ulang halaman ini.') +
+        '<div class="login-title">Konfigurasi database</div>' +
+        '<p class="login-sub">Aplikasi belum terhubung ke database Turso.</p>' +
+        App.ui.banner("info", "Isi <code>js/config.js</code>",
+          'Set <code>TURSO_URL</code> dan <code>TURSO_TOKEN</code> dengan kredensial database Anda, lalu muat ulang halaman ini.') +
         '<div class="form-actions"><button class="btn btn-primary btn-block" id="retrySetup" type="button">Sudah diisi — coba lagi</button></div>' +
         '<div class="login-foot">Panduan lengkap: <code>docs/deployment.md</code></div>' +
       "</div></div>";
 
     document.getElementById("retrySetup").addEventListener("click", function () {
-      /* muat ulang agar config.js terbaca ulang */
       location.reload();
     });
   }

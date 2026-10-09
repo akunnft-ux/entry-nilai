@@ -122,6 +122,18 @@ App.auth = (function () {
 
   function pinValid(pin) { return /^\d{4,8}$/.test(String(pin || "").trim()); }
 
+  function hasPin() { return App.api.hasPin(); }
+
+  /** First-run: buat PIN pertama kali lalu langsung masuk. */
+  function setupPin(pin) {
+    if (!pinValid(pin)) {
+      return Promise.reject({ code: "WEAK_PIN", message: "PIN harus 4–8 digit angka." });
+    }
+    return App.api.setPin(String(pin).trim()).then(function () {
+      return login(pin);
+    });
+  }
+
   function login(pin) {
     if (!pinValid(pin)) {
       return Promise.reject({ code: "WEAK_PIN", message: "PIN harus 4–8 digit angka." });
@@ -170,7 +182,8 @@ App.auth = (function () {
     sha256Hex: sha256Hex,
     pinValid: pinValid,
     session: session, token: token, isLoggedIn: isLoggedIn,
-    login: login, logout: logout, changePin: changePin,
+    login: login, setupPin: setupPin, hasPin: hasPin,
+    logout: logout, changePin: changePin,
     requireSession: requireSession
   };
 })();

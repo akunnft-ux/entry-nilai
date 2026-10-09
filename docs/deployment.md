@@ -1,100 +1,90 @@
-# Panduan Deploy — Entry Nilai
+# Panduan Deploy — Entry Nilai (v2, Turso)
 
-Dua komponen: **(1) backend Google Apps Script** dan **(2) frontend di GitHub Pages**.
-Estimasi: 15–20 menit. Akses final via URL `https://<user>.github.io/entry-nilai/`.
+Arsitektur v2: **frontend statis di GitHub Pages** yang berbicara **langsung
+ke database Turso (SQLite/libSQL)** lewat HTTPS. Tidak ada server aplikasi,
+tidak ada cold start, dan data otomatis sama di HP & laptop.
 
-> Prasyarat: akun Google (Gmail) & akun GitHub. Bila PIN disetel dari script editor, gunakan tab **incognito** setelahnya agar tidak bertabrakan dengan sesi Google.
+Estimasi: 5–10 menit. Akses final via
+`https://<user>.github.io/entry-nilai/`.
+
+> Prasyarat: akun [Turso](https://turso.tech) (gratis) & akun GitHub.
+> Kode legacy Google Apps Script (`apps-script/Code.gs`) **tidak dipakai lagi**
+> dan disimpan hanya sebagai referensi.
 
 ---
 
-## Bagian 1 — Backend Google Apps Script
+## Bagian 1 — Database Turso
 
-### 1.1 Buat spreadsheet
+### 1.1 Buat database
 
-1. Buka [sheets.new](https://sheets.new) (Google Sheets).
-2. Namai spreadsheet, mis. **"Data Nilai – SMA 1"**.
-3. Biarkan kosong — skema 4 sheet (`siswa`, `nilai`, `konfig`, `log`) dibuat otomatis oleh `ensureSchema()` saat pertama dipanggil.
+**Via dasbor:** buat database baru, mis. **`entry-nilai`**, di region
+terdekat (**Sydney `aws-ap-southeast-2`**).
 
-### 1.2 Pasang script
+**Via CLI** (opsional):
 
-1. Menu **Extensions ▸ Apps Script** (di spreadsheet tadi) → editor terbuka.
-2. Hapus konten default, **salin seluruh isi `apps-script/Code.gs`**, tempel.
-3. Beri nama project (mis. `entry-nilai-backend`).
+```bash
+turso auth login
+turso db create entry-nilai --group default
+```
 
-Jika Anda ingin backend **tidak terikat** pada satu spreadsheet (mis. dipakai beberapa spreadsheet), tambahkan Script Property `SPREADSHEET_ID` (nilai = ID spreadsheet dari URL `https://docs.google.com/spreadsheets/d/<ID>/edit`). Bila properti ini tidak ada, script otomatis memakai spreadsheet tempat ia di-deploy (cara standar panduan ini).
+### 1.2 Ambil URL & token
 
-### 1.3 Atur PIN
+```bash
+turso db show entry-nilai --url
+# → https://entry-nilai-<org>.aws-ap-southeast-2.turso.io
 
-1. Di editor Apps Script, **tambahkan fungsi wrapper** di baris paling bawah (fungsi `SETUP_setPin` punya parameter, jadi tidak bisa di-Run langsung):
-   ```js
-   function aturPin() {
-     SETUP_setPin("1234");   // ← ganti 1234 dengan PIN 4–8 digit Anda
-   }
-   ```
-2. Pilih `aturPin` pada dropdown fungsi (toolbar Run) → **Run** → izinkan otorisasi saat diminta.
-3. Cek di **Project Settings ▸ Script properties**: muncul `PIN_HASH` (hash SHA-256 ganda). PIN asli tidak pernah tersimpan.
+turso db tokens create entry-nilai --expiration never
+# → salin token (JWT)
+```
 
-> Alternatif manual tanpa menjalankan fungsi: buat Script Property `PIN_HASH` lalu salin nilai dari hasil `SETUP_pinHash("1234")` di log.
+Di dasbor: **Database ▸ Connect** juga menampilkan **URL** dan tombol
+**Create Token** (pilih *never expires*).
 
-**Jangan lupa:** ubah PIN pertama kali melalui menu **Pengaturan ▸ Keamanan** di aplikasi.
+### 1.3 Isi `js/config.js`
 
-> Opsional: tambahkan Script Property `APP_PASSWORD` bila Anda deploy ke beberapa
-> environment (dev/prod) dengan spreadsheet berbeda — nilai bebas, hanya dipakai
-> sebagai pembeda lingkungan pada respon `ping`.
+```js
+TURSO_URL: "https://entry-nilai-<org>.aws-ap-southeast-2.turso.io",
+TURSO_TOKEN: "<token-database-anda>",
+```
 
-### 1.4 Deploy sebagai Web App
+Skema tabel (`siswa`, `nilai`, `konfig`, `log`, `meta`, `session`) dibuat
+**otomatis** saat aplikasi pertama kali dibuka — tidak perlu migrasi manual.
 
-1. **Deploy ▸ New deployment ▸ Web app**.
-2. Set:
-   - **Description / version:** `1`, note `initial`.
-   - **Execute as:** `Me` (akun pemilik spreadsheet).
-   - **Who has access:** `Anyone` (diperlukan agar GitHub Pages bisa memanggil).
-3. Klik **Deploy**, lalu **izin akses** (Advanced ▸ Go to `<email>` (unsafe) ▸ Allow) — aman di sini karena script ini milik Anda.
-4. Salin **Web app URL** yang berakhiran `/exec` — mis. `https://script.google.com/macros/s/AKfycb.../exec`.
-
-> Catatan keamanan: membuat endpoint "Anyone" adalah satu-satunya cara Apps Script melayani request dari Pages. Keamanan dipegang oleh PIN + token di sisi server (PRD RISK-001). Jangan membagikan URL spreadsheet.
-
-### 1.5 Uji backend secara manual (opsional)
-
-- Buka Web app URL di browser → harus menampilkan `{"ok":false,"error":{"code":"BAD_REQUEST",...}}` (tanpa halaman kosong).
-- Di editor Apps Script pilih fungsi `SETUP_ensureSchema` → Run → buka spreadsheet: sekarang ada 4 sheet dengan header.
+> **Keamanan:** token tertanam di klien = **publik**. Siapa pun yang dapat
+> membuka halaman dapat membaca/menulis database. Ini memang dirancang untuk
+> pemakaian **pribadi satu pengguna**. PIN aplikasi hanya gerbang UI.
+> Jangan pakai setup ini untuk data sensitif multi-pengguna.
 
 ---
 
 ## Bagian 2 — Frontend GitHub Pages
 
-### 2.1 Isi URL backend
+### 2.1 Commit & push
 
-Di `js/config.js`:
-
-```js
-EXEC_URL: "https://script.google.com/macros/s/AKfycb…/exec"
+```bash
+git add .
+git commit -m "entry-nilai v2.0.0 (Turso)"
+git push origin main
 ```
 
-Simpan & commit.
+### 2.2 Aktifkan Pages
 
-> Di repo git lokal ini belum ada history. Inisialisasi jika belum:
-> `git init && git add . && git commit -m "entry-nilai v1.0.0"`
-
-### 2.2 Deploy ke GitHub Pages
-
-**Cara A (disarankan — folder `docs/`):**
-1. Pindahkan/salin seluruh isi project (index.html, css/, js/, apps-script/, docs/, plus `.nojekyll`) ke branch di GitHub.
-2. Buat repo publik mis. `<user>/entry-nilai`, push.
-3. **Settings ▸ Pages ▸ Deploy from a branch** ▸ pilih branch (dan folder `/` atau `/docs`) ▸ Save.
-4. Tunggu 1–2 menit, buka `https://<user>.github.io/entry-nilai/`.
-
-**Cara B (GitHub Actions):** gunakan action resmi `actions/deploy-pages` bila ingin kontrol lebih; prinsip sama (upload artefak `docs/` / root statis).
+1. **Settings ▸ Pages ▸ Build and deployment**.
+2. **Source:** *Deploy from a branch* ▸ branch `main` ▸ folder `/` → Save.
+3. Tunggu 1–2 menit, buka `https://<user>.github.io/entry-nilai/`.
 
 ### 2.3 Verifikasi final
 
 | Langkah | Ekspektasi |
 |---|---|
-| Buka URL Pages | Wizard/login muncul, badge koneksi "Terhubung" |
-| Login PIN | Masuk ke halaman Entry |
-| Tab Pengaturan ▸ Log | Isi log `LOGIN_OK` |
-| Entry ▸ Kelas 7A ▸ Jenis ▸ UH-1 | Tabel siswa tampil & bisa simpan |
+| Buka URL Pages | Form **Buat PIN** (first-run) muncul, badge "Terhubung" |
+| Buat PIN | Langsung masuk ke halaman Entry |
+| Tab Pengaturan ▸ Kelas | Tambah `7A` (tersimpan ke Turso) |
+| Pengaturan ▸ Jenis/Kode | Tambah `UH` + `UH-1` |
+| Siswa | Tambah beberapa siswa kelas `7A` |
+| Entry ▸ 7A ▸ UH ▸ UH-1 | Isi nilai, Simpan; muat ulang → nilai tetap ada |
 | Rekap ▸ 7A | Matriks + tombol CSV jalan |
+| Buka di HP | Login PIN yang sama → data identik (bukti sinkron) |
 
 ---
 
@@ -102,13 +92,13 @@ Simpan & commit.
 
 | Frekuensi | Aksi | Kenapa |
 |---|---|---|
-| Setiap awal semester | **Backup spreadsheet** (File ▸ Download ▸ `.xlsx`) | Belum ada backup otomatis (RISK-006) |
-| Setiap akhir semester | Backup lagi + simpan di Drive sekolah | Retensi ≥ 5 tahun |
-| Saat kurikulum berubah | Tambah Jenis/Kode baru lewat aplikasi (**Pengaturan**) | Tanpa redeploy |
-| Bila data > 500k baris | Pisah per tahun ajaran (lihat `docs/schema.md` §9) | Performa |
-| Mingguan | Tinjau **Pengaturan ▸ Log** (`LOGIN_FAIL`, `RATE_LIMITED`, hapus) | Deteksi akses anomali & gangguan |
+| Awal/akhir semester | `turso db dump entry-nilai > backup.sql` | Belum ada backup otomatis |
+| Saat kurikulum berubah | Tambah Jenis/Kode lewat **Pengaturan** | Tanpa redeploy |
+| Mingguan | Tinjau **Pengaturan ▸ Log** (`LOGIN_FAIL`, hapus) | Deteksi akses anomali |
 
-**Restore saat spreadsheet hilang/rusak:** upload `.xlsx` cadangan sebagai spreadsheet baru → hapus/set ulang `SPREADSHEET_ID` (bila memakai) → jalankan `SETUP_ensureSchema` → aplikasi normal kembali (RTO ± 1 hari).
+**Restore:** buat database baru dari `backup.sql`
+(`turso db shell entry-nilai < backup.sql`) → perbarui `TURSO_URL`/`TURSO_TOKEN`
+di `js/config.js` → push.
 
 ---
 
@@ -116,29 +106,37 @@ Simpan & commit.
 
 | Gejala | Penyebab umum | Solusi |
 |---|---|---|
-| App "tidak terhubung", badge offline | `EXEC_URL` salah / belum diisi | Periksa `js/config.js`; pastikan berakhiran `/exec` |
-| Login "PIN belum diatur" | `PIN_HASH` tidak ada | Jalankan `SETUP_setPin` §1.3 |
-| Login "PIN salah" padahal benar | PIN disetel dengan fungsi lain / dua lingkungan | Pastikan memakai spreadsheet yang sama & hash di Script Properties. Cek lalu lakukan `SETUP_setPin` ulang |
-| Request selalu `INVALID_TOKEN` | Waktu perangkat tidak sinkron / sesi kedaluwarsa | Login ulang; sesi TTL 6 jam |
-| Tersangkut di konfirmasi Google ("unsafe") | Otorisasi belum disetujui | Selesaikan otorisasi sekali saat deploy §1.4 |
-| CORS/gagal baca respons | Upload via HTTP / fallback mati | Hanya HTTPS (GitHub Pages sudah HTTPS). Coba aktifkan `ALLOW_JSONP_FALLBACK` |
-| Deploy baru Apps Script belum berlaku | Perubahan Code.gs setelah publish | Klik **Deploy ▸ Manage deployments ▸ edit ▸ New version**, lalu pakai URL **version** yang baru |
-| Aplikasi terasa berat (login/tambah kelas lambat) | Web App cold start + RPC berulang ke sheet | Pastikan kode versi **v1.0.2+** (cache schema/konfig, log batch, `konfig.save` 5 RPC) lalu deploy **New version**; gunakan `SPREADSHEET_ID`; koneksi stabil |
+| Badge "Terputus" / gagal muat data | `TURSO_URL`/`TURSO_TOKEN` salah | Periksa `js/config.js`; pastikan URL tanpa `/v2/pipeline` dan token masih berlaku |
+| Request `INVALID_TOKEN` | Sesi kedaluwarsa (TTL 6 jam) / token DB dicabut | Login ulang; buat token baru bila dicabut |
+| `CONFIG_IN_USE` saat hapus | Entri masih dipakai data | Hapus datanya dulu, atau pakai **Nonaktifkan** |
+| Data tak muncul di perangkat lain | Belum muat ulang (tidak ada realtime) | Refresh halaman |
+| Lambat saat pertama buka | Latensi jaringan ke region Sydney | Wajar (RTT ~100–200 ms). Tidak ada cold start |
+| CORS error di konsol | Rare; Turso mengirim `Access-Control-Allow-Origin: *` | Pastikan akses via HTTPS (Pages sudah HTTPS), bukan `file://` |
 
 ---
 
 ## Rollback
 
-- **Frontend:** GitHub Pages menyimpan release/commit sebelumnya → revert commit, redeploy.
-- **Backend:** setiap perubahan diberi versi deployment baru; gunakan URL versi lama sampai stabil.
-- **Schema:** `ensureSchema()` additive-only → tidak perlu migrasi manual untuk penambahan kolom.
-- **Data:** backup `.xlsx` §3.
+- **Frontend:** GitHub Pages menyimpan commit sebelumnya → revert commit, push ulang.
+- **Database:** pulihkan dari `backup.sql` (§operasi rutin).
+- **Skema:** `schema.js` memakai `CREATE TABLE/INDEX IF NOT EXISTS`; penambahan
+  bersifat aditif. Untuk perubahan besar, naikkan `App.schema.VERSION`.
 
 ---
 
-## Batasan & yang TIDAK disediakan v1
+## Tes
+
+```bash
+node test/run_backend_tests.js       # 57 asersi, SQLite in-memory (offline)
+# atau
+cd test && npm install && npm test
+```
+
+---
+
+## Batasan & yang TIDAK disediakan
 
 - Tidak ada multi-sekolah, multi-role, atau perbaikan otomatis.
-- Tidak ada auto-backup (manual wajib, lihat tabel operasi).
-- Kode Entry/pengaturan tidak ter-encrypt di localStorage (nilai = data biasa seperti kertas).
-- Belum ada rate-limit per-IP (Apps Script tidak mengekspos IP) — `auth.verify` dibatasi global per skrip.
+- Tidak ada backup otomatis (manual via `turso db dump`).
+- Token database **publik** (lihat catatan keamanan §1.3) — single-user saja.
+- Tidak ada sinkronisasi realtime antar perangkat (cukup muat ulang).

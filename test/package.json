@@ -1,0 +1,7 @@
+{
+  "name": "entry-nilai-tests",
+  "private": true,
+  "description": "Harness tes backend (offline, SQLite in-memory).",
+  "scripts": { "test": "node run_backend_tests.js" },
+  "devDependencies": { "better-sqlite3": "^11.5.0" }
+}

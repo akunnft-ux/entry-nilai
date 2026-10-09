@@ -5,6 +5,43 @@
 
 ---
 
+> ## ⚠️ Pembaruan Arsitektur v2.0.0 (2026-10) — Turso (libSQL)
+>
+> Bagian 1–N di bawah ini mendokumentasikan **arsitektur v1** (Google Apps
+> Script + Google Sheets) yang kini **warisan/legacy** (`apps-script/Code.gs`
+> tidak lagi dipakai). Aplikasi produksi sekarang memakai **arsitektur v2**:
+>
+> ```
+> BROWSER (GitHub Pages, statis)
+>   js/config.js          TURSO_URL + TURSO_TOKEN
+>   js/turso/client.js    klien libSQL HTTP /v2/pipeline (tagged values)
+>   js/backend/schema.js  DDL idempoten
+>   js/backend/engine.js  port penuh Code.gs → registry aksi + envelope
+>   js/api.js             dispatch ke engine lokal (kontrak call() tetap)
+>         │ HTTPS (JSON)
+>         ▼
+>   TURSO (SQLite/libSQL, region Sydney aws-ap-southeast-2)
+>         hanya endpoint data — tidak ada server aplikasi
+> ```
+>
+> **Inti keputusan:** (1) tidak ada server aplikasi & tidak ada *cold start*;
+> (2) logika backend (`Code.gs`) dipindah apa adanya ke `engine.js` agar 16
+> aksi + envelope `{ok,data,error,requestId}` tidak berubah — halaman tidak
+> disentuh; (3) kunci bisnis & constraint dipertahankan (NIS unik
+> case-insensitive via *partial unique index*; nilai unik per
+> `(siswa_id,kelas,jenis,kode)`); (4) `group`/`key` (kata kunci SQL) dipetakan
+> ke kolom `grp`/`k`; (5) sesi & rate-limit disimpan in-memory + tabel
+> `session` (SQL).
+>
+> **Konsekuensi keamanan (diterima pemilik, single-user pribadi):** token
+> database tertanam di klien = **publik**; siapa pun dengan akses halaman dapat
+> membaca/menulis DB. PIN tetap dipertahankan sebagai *UI gate* (double
+> SHA-256 di tabel `meta`).
+>
+> Arsitektur v1 tetap di bawah sebagai referensi historis dan alasan desain.
+
+---
+
 ## 1. Architecture Overview
 
 **Pola:** *Modular monolith* di sisi frontend (SPA statis) + *stateless function backend* (Google Apps Script) + *document store* (Google Sheets). Tidak ada proses server yang dijalankan, tidak ada build step.

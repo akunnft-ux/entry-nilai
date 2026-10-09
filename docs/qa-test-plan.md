@@ -5,22 +5,23 @@ Kriteria skill qa-tester-pro: tidak ada status `PASS` tanpa observasi.
 
 ---
 
-## 1. Hasil eksekusi: Tes Fungsional Backend (harness Apps Script)
+## 1. Hasil eksekusi: Tes Fungsional Backend (harness SQLite offline)
 
-Logika `apps-script/Code.gs` dieksekusi pada Node murni via mock
-Spreadsheet/Cache/Properties/Lock/Content. Ini **bukan** pengganti uji E2E di
-lingkungan Google; itu ada di §5.
+Logika `js/backend/engine.js` dieksekusi pada Node murni di atas **SQLite
+in-memory** (`better-sqlite3`). Ini **bukan** pengganti uji E2E di browser
+asli; itu ada di §5.
 
-- Command: `node test/run_backend_tests.js`
-- Hasil: **55 PASS / 0 FAIL** (semua asersi lolos).
-- Harness: `test/run_backend_tests.js` (FakeSheet/FakeRange in-memory,
-  `vm` memuat `Code.gs`, `doPost` dengan transport PRIMARY POST JSON).
+- Command: `node test/run_backend_tests.js` (atau `cd test && npm test`)
+- Hasil: **57 PASS / 0 FAIL** (semua asersi lolos).
+- Harness: `test/run_backend_tests.js` — memuat `js/config.js`,
+  `js/backend/schema.js`, `js/backend/engine.js` via `vm` dengan adapter
+  `db` (all/run/batch/exec) berbasis `better-sqlite3`.
 
-### Cakupan skenario (55 asersi)
+### Cakupan skenario (57 asersi)
 
 | Blok | Yang dibuktikan |
 |---|---|
-| [1] Setup & schema | `ping` ok + `sheetOk`; `ensureSchema_` membuat 4 sheet (`siswa`, `nilai`, `konfig`, `log`) |
+| [1] Setup & schema | `ping` ok + `sheetOk`; `ensureSchema` membuat tabel inti (`siswa`, `nilai`, `konfig`, `log`, `meta`) |
 | [2] Auth | `PIN_NOT_CONFIGURED` saat PIN belum di-set; verify benar → token + `expiresAt`; salah → `INVALID_PIN` tanpa detail; tanpa token → `INVALID_TOKEN`; rate limit 5/15menit → `RATE_LIMITED` + `retryIn` |
 | [3] Konfig master | save kelas/jenis/kode; `konfig.list`; key >40 → `KEY_INVALID` skip |
 | [4] Master siswa | 3 insert valid; NIS duplikat → `DUPLICATE_NIS`; nama null → `NAMA_INVALID`; filter kelas/status; partial update status; ubah NIS jadi duplikat → skip |
@@ -30,6 +31,7 @@ lingkungan Google; itu ada di §5.
 | [8] Log audit | `log.list` entries + field `before`/`after`; aksi penting tercatat |
 | [9] Ganti PIN | `INVALID_OLD_PIN`; `WEAK_PIN` (same); sukses `changed`; PIN lama tak berlaku; PIN baru berlaku |
 | [10] Edge request | aksi tak dikenal → `UNKNOWN_ACTION`; `auth.logout` → `done` |
+| [11] Perf | tambah 1 kelas = **3 panggilan db** (`all` 1, `batch` 1, `run` 1) |
 
 Pola assert dieksekusi, contoh asli:
 
@@ -75,21 +77,29 @@ Uji fungsional browser tercakup di §5.
 
 ## 4. Performance (NFR-003, respons < 3s)
 
-**CANNOT VERIFY** — tidak ada instance Apps Script berjalan di lingkungan ini.
-Optimisasi performa `apps-script/Code.gs` v1.0.2 (kurangi RPC per request, diukur
-dengan pencacah RPC di harness, unit: panggilan Google API):
-1. `ensureSchema_` short-circuit cache `SCHEMA_OK` 60 dtk — getSheets 1×/menit.
-2. `readKonfig_` cache `KONFIG_V1` 10 dtk + invalidate saat konfig ditulis.
-3. `spreadsheet_` cache objek spreadsheet per eksekusi (`_ssCache`).
-4. Log audit di-*queue* (`CTX.logQueue`) + flush 1 batch di akhir request oleh
-   `flushLogs_()` — bebas RPC; 2 RPC utk berapa pun banyak record.
-5. `konfig.save` baca sheet sekali (`getDataRange`), simpan index baris fisik,
-   tulis append + patch langsung tanpa getValues ulang.
+**DIUKUR (offline + smoke ke Turso asli).** Arsitektur v2 tidak punya server
+aplikasi dan tidak ada *cold start*: browser berbicara langsung ke Turso
+(libSQL) via satu endpoint HTTP `/v2/pipeline`. Setiap request API = 1–3
+round-trip (setiap round-trip = 1 POST berisi banyak statement sekaligus).
 
-**Hasil ukur harness [11]:** tambah 1 kelas = **5 RPC** (getSheetByName 2
-`konfig`+`log`, baca 1, tulis 2). Implementasi lama ≈ 10 RPC. Sisanya utk
-`siswa.save`/`nilai.bulkSave`: baca sheet `siswa`/`nilai` utk cek duplikat +
-tulis + log batch. Angka latensi riil tetap butuh pengukuran pasca-deploy (§5).
+Optimisasi yang diukur:
+1. `schema.ensure` jalur cepat: cek `meta.schema_version` (1 query) → DDL
+   dilewati bila skema sudah terkini.
+2. `readKonfig` cache in-memory 10 dtk + invalidate saat konfig ditulis.
+3. Log audit di-*queue* lalu flush **satu** `INSERT` multi-baris di akhir
+   request (bebas biaya tambahan berapa pun banyak record).
+4. `konfig.save` baca sekali + tulis satu `batch`.
+5. Sesi diverifikasi dari cache in-memory (fallback 1 query ke tabel `session`).
+
+**Hasil ukur harness [11]:** tambah 1 kelas = **3 panggilan db** (`all` 1,
+`batch` 1, `run` 1 → ≤3 round-trip). **Smoke ke Turso asli** (region Sydney):
+`init/schema`, `ping`, `konfig.save/list/remove` semua ok; RTT steady-state
+≈ **210 ms/round-trip** dari lingkungan uji (jaringan Indonesia ≈ 100–150 ms).
+`batch` 3 statement = 1 round-trip (biaya nyaris nol per statement tambahan).
+
+> Catatan CORS: Turso mengirim `access-control-allow-origin: *` (tanpa
+> `Access-Control-Max-Age`), sehingga tiap request dapat memicu preflight
+> `OPTIONS` — sedikit menambah latensi tetapi tetap jauh di bawah batas 3 dtk.
 
 ---
 

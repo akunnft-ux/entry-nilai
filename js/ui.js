@@ -257,17 +257,17 @@ App.ui = (function () {
     var code = err && err.code;
     var map = {
       OFFLINE: "Koneksi internet terputus. Periksa jaringan lalu coba lagi.",
-      TIMEOUT: "Server terlalu lama merespons. Coba lagi dalam beberapa saat.",
-      BAD_RESPONSE: "Respons server tidak terbaca. Pastikan URL Apps Script sudah benar.",
+      TIMEOUT: "Database terlalu lama merespons. Coba lagi dalam beberapa saat.",
+      NETWORK: "Gagal menghubungi database. Periksa koneksi lalu coba lagi.",
+      BAD_RESPONSE: "Respons tidak terbaca. Pastikan TURSO_URL di js/config.js benar.",
+      DB_ERROR: "Kesalahan pada database. Coba lagi atau hubungi operator.",
       INVALID_TOKEN: "Sesi Anda berakhir. Silakan masuk kembali.",
       RATE_LIMITED: "Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.",
-      QUOTA_EXCEEDED: "Kuota Google terlampaui. Tunggu ±1 menit lalu coba lagi.",
-      SHEET_BUSY: "Spreadsheet sedang dikunci pihak lain. Tutup tab Google Sheets lalu coba lagi.",
-      PIN_NOT_CONFIGURED: "PIN belum dikonfigurasi. Selesaikan langkah setup terlebih dahulu.",
+      PIN_NOT_CONFIGURED: "PIN belum dibuat. Buat PIN terlebih dahulu.",
       INVALID_PIN: "PIN salah. Periksa kembali PIN Anda.",
       CONFIG_IN_USE: "Entri ini sudah dipakai data dan tidak bisa dihapus.",
-      NOT_CONFIGURED: "Aplikasi belum terhubung ke Google Sheets.",
-      INTERNAL: "Terjadi kesalahan di server. Coba lagi."
+      NOT_CONFIGURED: "Aplikasi belum terhubung ke database.",
+      INTERNAL: "Terjadi kesalahan pada sistem. Coba lagi."
     };
     if (map[code]) return map[code];
     if (err && err.message) return err.message;
