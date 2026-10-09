@@ -499,6 +499,7 @@ Transport: **HTTPS POST** ke Apps Script Web App `/exec`, body JSON (`Content-Ty
 | API-010 | `konfig.save` | POST | Tambah/ubah konfig | `{token, entries[]}` | `{saved, skipped[]}` | Token | `CONFIG_IN_USE` (409) | 30/menit |
 | API-011 | `konfig.remove` | POST | Hapus permanen konfig | `{token, group, key}` | `{removed:true}` | Token | `CONFIG_IN_USE` (409), `NOT_FOUND` | 30/menit |
 | API-011b | `konfig.deactivate` | POST | Nonaktifkan konfig (soft) | `{token, group, key}` | `{deactivated:true}` | Token | `NOT_FOUND` | 30/menit |
+| API-011c | `konfig.update` | POST | Edit/rename konfig (cascade) | `{token, group, key, newKey?, label?, parent?}` | `{updated:true, renamed, key}` | Token | `NOT_FOUND`, `KEY_EXISTS` (409), `INVALID_PARENT` | 30/menit |
 | API-012 | `log.list` | POST | Baca log (200 terakhir) | `{token, limit?}` | `{entries[]}` | Token | `INVALID_TOKEN` | 10/menit |
 | API-013 | `settings.changePin` | POST | Ganti PIN | `{token, oldPin, newPin}` | `{changed:true}` | Token | `INVALID_OLD_PIN` (401), `WEAK_PIN` (422) | 5/15 menit |
 

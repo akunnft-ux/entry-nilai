@@ -70,13 +70,16 @@
           '<div id="setBanner"></div>' +
           '<div class="siswa-layout">' +
             '<div class="card">' +
-              '<div class="card-head"><span class="card-title">Tambah kelas</span></div>' +
+              '<div class="card-head"><span class="card-title" id="titleKelas">Tambah kelas</span></div>' +
               '<div class="card-body">' +
                 '<form id="formKelas" novalidate>' +
                   ui.field({ label: "Nama kelas", name: "kelas", required: true,
                     placeholder: "mis. 7A", maxLength: 40 }) +
                   '<div id="kelasErr"></div>' +
-                  '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btnKelas">Tambah</button></div>' +
+                  '<div class="form-actions">' +
+                    '<button class="btn btn-primary" type="submit" id="btnKelas">Tambah</button>' +
+                    '<button class="btn btn-ghost" type="button" id="btnKelasReset" hidden>Batal</button>' +
+                  "</div>" +
                 "</form>" +
               "</div>" +
             "</div>" +
@@ -107,19 +110,22 @@
           '<div class="siswa-layout">' +
             '<div class="stack">' +
               '<div class="card">' +
-                '<div class="card-head"><span class="card-title">Tambah jenis penilaian</span></div>' +
+                '<div class="card-head"><span class="card-title" id="titleJenis">Tambah jenis penilaian</span></div>' +
                 '<div class="card-body">' +
                   '<form id="formJenis" novalidate>' +
                     ui.field({ label: "Nama jenis", name: "label", required: true,
                       placeholder: "mis. Proyek", maxLength: 40,
                       hint: "Kunci otomatis dibuat dari nama (huruf besar)." }) +
                     '<div id="jenisErr"></div>' +
-                    '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btnJenis">Tambah</button></div>' +
+                    '<div class="form-actions">' +
+                      '<button class="btn btn-primary" type="submit" id="btnJenis">Tambah</button>' +
+                      '<button class="btn btn-ghost" type="button" id="btnJenisReset" hidden>Batal</button>' +
+                    "</div>" +
                   "</form>" +
                 "</div>" +
               "</div>" +
               '<div class="card">' +
-                '<div class="card-head"><span class="card-title">Tambah kode penilaian</span></div>' +
+                '<div class="card-head"><span class="card-title" id="titleKode">Tambah kode penilaian</span></div>' +
                 '<div class="card-body">' +
                   '<form id="formKode" novalidate>' +
                     ui.field({ label: "Jenis", name: "parent", type: "select", required: true,
@@ -127,9 +133,12 @@
                     ui.field({ label: "Kode", name: "key", required: true,
                       placeholder: "mis. UH-1", maxLength: 24,
                       hint: "Dipakai sebagai nama kolom di rekap." }) +
-                    ui.field({ label: "Keterangan", name: "label", placeholder: "mis. Ulangan Harian ke-1", maxLength: 40 }) +
+                    ui.field({ label: "Keterangan", name: "ket", placeholder: "mis. Ulangan Harian ke-1", maxLength: 40 }) +
                     '<div id="kodeErr"></div>' +
-                    '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btnKode">Tambah</button></div>' +
+                    '<div class="form-actions">' +
+                      '<button class="btn btn-primary" type="submit" id="btnKode">Tambah</button>' +
+                      '<button class="btn btn-ghost" type="button" id="btnKodeReset" hidden>Batal</button>' +
+                    "</div>" +
                   "</form>" +
                 "</div>" +
               "</div>" +
@@ -158,7 +167,7 @@
           var key = String(values.key || "").trim().toUpperCase();
           if (!key) return { error: "Kode wajib diisi." };
           if (!values.parent) return { error: "Jenis wajib dipilih." };
-          return { entry: { group: "kode", key: key, label: values.label || key, parent: values.parent } };
+          return { entry: { group: "kode", key: key, label: values.ket || key, parent: values.parent } };
         });
         bindKonfigActions();
       }
@@ -314,6 +323,7 @@
               (showParent && entry.parent ? " · jenis " + ui.esc(entry.parent) : "") + "</div>" +
           "</div>" +
           '<div class="konfig-actions">' +
+            '<button class="btn btn-ghost btn-sm" data-kact="edit" type="button">Ubah</button>' +
             (off ? "" :
               '<button class="btn btn-ghost btn-sm" data-kact="deactivate" type="button">Nonaktifkan</button>' +
               '<button class="btn btn-danger-ghost btn-sm" data-kact="remove" type="button">Hapus</button>') +
@@ -321,16 +331,72 @@
         "</div>";
       }
 
+      /* ---------------- edit entri konfig ---------------- */
+      var editForms = {
+        kelas: { formId: "formKelas", btnId: "btnKelas", resetId: "btnKelasReset", errId: "kelasErr", titleId: "titleKelas", title: "Tambah kelas" },
+        jenis: { formId: "formJenis", btnId: "btnJenis", resetId: "btnJenisReset", errId: "jenisErr", titleId: "titleJenis", title: "Tambah jenis penilaian" },
+        kode:  { formId: "formKode",  btnId: "btnKode",  resetId: "btnKodeReset",  errId: "kodeErr",  titleId: "titleKode",  title: "Tambah kode penilaian" }
+      };
+
+      function startEditKonfig(group, key) {
+        var cfg = editForms[group];
+        if (!cfg) return;
+        var entry = konfig.filter(function (e) { return e.group === group && e.key === key; })[0];
+        if (!entry) return;
+        var f = document.getElementById(cfg.formId);
+        if (!f) return;
+
+        if (group === "kelas") {
+          var elK = f.querySelector('[name="kelas"]'); if (elK) elK.value = entry.key;
+        } else if (group === "jenis") {
+          var elJ = f.querySelector('[name="label"]'); if (elJ) elJ.value = entry.label || entry.key;
+        } else if (group === "kode") {
+          var elParent = f.querySelector('[name="parent"]'); if (elParent) elParent.value = entry.parent || "";
+          var elKey = f.querySelector('[name="key"]'); if (elKey) elKey.value = entry.key;
+          var elLabel = f.querySelector('[name="ket"]'); if (elLabel) elLabel.value = entry.label || "";
+        }
+
+        f.dataset.editKey = key;
+        f.dataset.editGroup = group;
+        var btn = document.getElementById(cfg.btnId); if (btn) btn.textContent = "Simpan perubahan";
+        var title = document.getElementById(cfg.titleId); if (title) title.textContent = cfg.title.replace("Tambah", "Ubah");
+        var reset = document.getElementById(cfg.resetId); if (reset) reset.hidden = false;
+        var errBox = document.getElementById(cfg.errId); if (errBox) errBox.innerHTML = "";
+        if (f.scrollIntoView) f.scrollIntoView({ block: "center", behavior: "smooth" });
+        var first = f.querySelector("input, select"); if (first && first.focus) first.focus();
+      }
+
+      function clearFields(f) {
+        Array.prototype.forEach.call(f.querySelectorAll("input, select, textarea"), function (el) {
+          el.value = "";
+        });
+      }
+
+      function cancelEdit(group) {
+        var cfg = editForms[group];
+        if (!cfg) return;
+        var f = document.getElementById(cfg.formId);
+        if (f) { if (f.reset) f.reset(); else clearFields(f); delete f.dataset.editKey; delete f.dataset.editGroup; }
+        var btn = document.getElementById(cfg.btnId); if (btn) btn.textContent = "Tambah";
+        var title = document.getElementById(cfg.titleId); if (title) title.textContent = cfg.title;
+        var reset = document.getElementById(cfg.resetId); if (reset) reset.hidden = true;
+        var errBox = document.getElementById(cfg.errId); if (errBox) errBox.innerHTML = "";
+      }
+
       function bindKonfigForm(formId, errId, group, btnId, transform) {
         var f = document.getElementById(formId);
         if (!f) return;
+
+        var resetBtn = document.getElementById(editForms[group].resetId);
+        if (resetBtn) resetBtn.addEventListener("click", function () { cancelEdit(group); });
+
         f.addEventListener("submit", function (e) {
           e.preventDefault();
           var errBox = document.getElementById(errId);
           errBox.innerHTML = "";
 
           var values = {};
-          Array.prototype.forEach.call(f.elements, function (el) {
+          Array.prototype.forEach.call(f.querySelectorAll("[name]"), function (el) {
             if (el.name) values[el.name] = el.value;
           });
 
@@ -345,12 +411,15 @@
             entry = { group: group, key: key, label: key };
           }
 
+          var editKey = f.dataset.editKey;
           var btn = document.getElementById(btnId);
           ui.busy(btn, true, "Menyimpan…");
-          App.api.call("konfig.save", { entries: [entry] }).then(function () {
+          var req = editKey
+            ? App.api.call("konfig.update", { group: entry.group, key: editKey, newKey: entry.key, label: entry.label, parent: entry.parent })
+            : App.api.call("konfig.save", { entries: [entry] });
+          req.then(function () {
             ui.busy(btn, false);
-            ui.toast("Entri ditambahkan.", "success");
-            f.reset();
+            ui.toast(editKey ? "Perubahan tersimpan." : "Entri ditambahkan.", "success");
             refresh();
           }).catch(function (err) {
             ui.busy(btn, false);
@@ -370,6 +439,8 @@
           var group = item.getAttribute("data-group");
           var key = item.getAttribute("data-key");
           var act = btn.getAttribute("data-kact");
+
+          if (act === "edit") { startEditKonfig(group, key); return; }
 
           if (act === "deactivate") {
             ui.confirm({

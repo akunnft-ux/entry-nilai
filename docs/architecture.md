@@ -286,7 +286,8 @@ Boot → token di localStorage?
 | `siswa.save` (insert/update) | token subject | ISO-8601 UTC | `siswa/<id>` | `{}` / row lama | row baru |
 | `siswa.save` (status) | idem | idem | `siswa/<id>` | `{status:"aktif"}` | `{status:"nonaktif"}` |
 | `nilai.bulkSave` (per record berubah) | idem | idem | `nilai/<id>` | `{nilai:78}` | `{nilai:85}` |
-| `konfig.save` / `konfig.remove` | idem | idem | `konfig/<group>/<key>` | row lama | row baru / `{aktif:false}` |
+| `konfig.save` / `konfig.remove` / `konfig.deactivate` | idem | idem | `konfig/<group>/<key>` | row lama | row baru / `{aktif:false}` |
+| `konfig.update` (rename) | idem | idem | `konfig/<group>/<oldKey>` → `<newKey>` (+ cascade `siswa.kelas` / `nilai.kelas|jenis|kode` / `konfig.parent`) | row lama | row baru |
 | `settings.changePin` | idem | idem | `app/PIN_HASH` | `{pin:"***"}` (tidak pernah nilai asli) | `{pin:"***"}` |
 | `auth.verify` (sukses & gagal) | input PIN (hashed) / unknown | idem | `auth` | `{}` | `{result:"ok"/"fail"}` |
 

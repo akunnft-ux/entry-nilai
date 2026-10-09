@@ -604,6 +604,47 @@ App.backend = (function () {
       return { deactivated: true };
     }
 
+    async function actionKonfigUpdate(p) {
+      var group = String((p && p.group) || "").trim();
+      var key = String((p && p.key) || "").trim();
+      if (KONFIG_GROUPS.indexOf(group) === -1) throwApp("GROUP_INVALID", "Group tidak dikenal.");
+      if (!key) throwApp("KEY_INVALID", "Entri lama wajib diisi.");
+      var prev = await konfigEntry(group, key);
+      if (!prev) throwApp("NOT_FOUND", "Entri tidak ditemukan.");
+
+      var newKey = String(p.newKey === undefined ? key : p.newKey).trim();
+      if (!newKey || newKey.length > 40) throwApp("KEY_INVALID", "Nama/kode 1–40 karakter.");
+      var label = String(p.label === undefined ? prev.label : p.label).trim();
+      if (!label || label.length > 40) throwApp("LABEL_INVALID", "Label 1–40 karakter.");
+      var parent = String(p.parent === undefined ? prev.parent : p.parent).trim();
+      if (group === "kode" && parent && !(await konfigEntry("jenis", parent))) throwApp("INVALID_PARENT", "Jenis tidak dikenal.");
+
+      var renamed = newKey !== key;
+      if (renamed && (await konfigEntry(group, newKey))) throwApp("KEY_EXISTS", '"' + newKey + '" sudah dipakai.');
+
+      var ts = nowIso();
+      var statements = [];
+      if (renamed) {
+        if (group === "kelas") {
+          statements.push({ sql: "UPDATE siswa SET kelas = ?, updated_at = ? WHERE kelas = ?", args: [newKey, ts, key] });
+          statements.push({ sql: "UPDATE nilai SET kelas = ?, updated_at = ? WHERE kelas = ?", args: [newKey, ts, key] });
+        } else if (group === "jenis") {
+          statements.push({ sql: "UPDATE nilai SET jenis = ?, updated_at = ? WHERE jenis = ?", args: [newKey, ts, key] });
+          statements.push({ sql: "UPDATE konfig SET parent = ? WHERE grp = 'kode' AND parent = ?", args: [newKey, key] });
+        } else if (group === "kode") {
+          statements.push({ sql: "UPDATE nilai SET kode = ?, updated_at = ? WHERE kode = ?", args: [newKey, ts, key] });
+        }
+      }
+      statements.push({ sql: "UPDATE konfig SET grp = ?, k = ?, label = ?, parent = ?, updated_at = ? WHERE grp = ? AND k = ?",
+        args: [group, newKey, label, parent, ts, group, key] });
+
+      await db.batch(statements);
+      appendLog("guru", "UPDATE", "konfig", group + "/" + key, prev,
+        { group: group, key: newKey, label: label, parent: parent, aktif: prev.aktif, renamed: renamed });
+      invalidateKonfig();
+      return { updated: true, renamed: renamed, key: newKey };
+    }
+
     async function actionLogList(p) {
       var limit = Math.min(parseInt((p && p.limit) || 200, 10) || 200, 200);
       if (limit < 1) limit = 1;
@@ -644,6 +685,7 @@ App.backend = (function () {
     register("rekap.get", "rekap", actionRekapGet);
     register("konfig.list", "read", actionKonfigList);
     register("konfig.save", "write", actionKonfigSave);
+    register("konfig.update", "write", actionKonfigUpdate);
     register("konfig.remove", "write", actionKonfigRemove);
     register("konfig.deactivate", "write", actionKonfigDeactivate);
     register("log.list", "log", actionLogList);

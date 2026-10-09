@@ -250,6 +250,48 @@ function pub(action, payload) { return call(action, payload, null); }
     ok("siswa_id kosong → INVALID_ROW", emptyRow.ok === true && emptyRow.data.skipped.some((r) => r.reason === "INVALID_ROW"));
   }
 
+  console.log("\n[7b] Konfig edit/rename (konfig.update)");
+  {
+    engine._rl["RLU:" + token.slice(0, 16) + ":write"] = undefined;   /* bersihkan bucket write agar tak rate-limited */
+    await call("konfig.save", { entries: [
+      { group: "kelas", key: "8A", label: "8A" },
+      { group: "jenis", key: "PH", label: "Penilaian Harian" },
+      { group: "kode", key: "PH-1", label: "PH ke-1", parent: "PH" },
+      { group: "jenis", key: "PR", label: "Pekerjaan Rumah" },
+      { group: "kode", key: "PR-1", label: "PR ke-1", parent: "PR" }
+    ] }, token);
+    await call("siswa.save", { records: [{ nis: "2001", nama: "Eka Putri", kelas: "8A" }] }, token);
+    const list8 = await call("siswa.list", { kelas: "8A" }, token);
+    const ekaId = list8.data.siswa[0].id;
+    await call("nilai.bulkSave", { kelas: "8A", jenis: "PH", kode: "PH-1", records: [{ siswa_id: ekaId, nilai: 70 }] }, token);
+
+    const upK = await call("konfig.update", { group: "kelas", key: "8A", newKey: "8B", label: "8B" }, token);
+    ok("rename kelas → renamed", upK.ok === true && upK.data.renamed === true, JSON.stringify(upK));
+    const allS = await call("siswa.list", {}, token);
+    ok("rename kelas → siswa.kelas ikut berubah", allS.data.siswa.find((x) => x.nis === "2001").kelas === "8B");
+    const nilaiB = await call("nilai.list", { kelas: "8B", jenis: "PH", kode: "PH-1" }, token);
+    ok("rename kelas → nilai.kelas ikut berubah", nilaiB.ok === true && nilaiB.data.nilai.length === 1, JSON.stringify(nilaiB));
+
+    const upJ = await call("konfig.update", { group: "jenis", key: "PR", newKey: "PRJ", label: "Pekerjaan Rumah" }, token);
+    const kAll = await call("konfig.list", {}, token);
+    const prKode = kAll.data.entries.find((e) => e.group === "kode" && e.key === "PR-1");
+    ok("rename jenis → parent kode turunan ikut berubah", upJ.ok === true && prKode && prKode.parent === "PRJ", JSON.stringify(prKode));
+
+    const upC = await call("konfig.update", { group: "kode", key: "PH-1", newKey: "PH-2", label: "PH ke-2", parent: "PH" }, token);
+    const nilaiC = await call("nilai.list", { kelas: "8B", jenis: "PH", kode: "PH-2" }, token);
+    ok("rename kode → nilai.kode ikut berubah", upC.ok === true && nilaiC.ok === true && nilaiC.data.nilai.length === 1, JSON.stringify(nilaiC));
+
+    const upL = await call("konfig.update", { group: "jenis", key: "PH", label: "Penilaian Harian (PH)" }, token);
+    const kAll2 = await call("konfig.list", {}, token);
+    const ph = kAll2.data.entries.find((e) => e.group === "jenis" && e.key === "PH");
+    ok("edit label tanpa ganti key", upL.ok === true && upL.data.renamed === false && ph.label === "Penilaian Harian (PH)", JSON.stringify(ph));
+
+    const nf = await call("konfig.update", { group: "kelas", key: "ZZZ", newKey: "ZZ1" }, token);
+    ok("update entri tak ada → NOT_FOUND", nf.ok === false && nf.error.code === "NOT_FOUND");
+    const dup = await call("konfig.update", { group: "jenis", key: "PH", newKey: "PRJ" }, token);
+    ok("rename ke key yang sudah ada → KEY_EXISTS", dup.ok === false && dup.error.code === "KEY_EXISTS", JSON.stringify(dup));
+  }
+
   console.log("\n[8] Log audit");
   {
     const l = await call("log.list", {}, token);

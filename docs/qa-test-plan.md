@@ -12,12 +12,12 @@ in-memory** (`better-sqlite3`). Ini **bukan** pengganti uji E2E di browser
 asli; itu ada di §5.
 
 - Command: `node test/run_backend_tests.js` (atau `cd test && npm test`)
-- Hasil: **60 PASS / 0 FAIL** (semua asersi lolos).
+- Hasil: **68 PASS / 0 FAIL** (semua asersi lolos).
 - Harness: `test/run_backend_tests.js` — memuat `js/config.js`,
   `js/backend/schema.js`, `js/backend/engine.js` via `vm` dengan adapter
   `db` (all/run/batch/exec) berbasis `better-sqlite3`.
 
-### Cakupan skenario (60 asersi)
+### Cakupan skenario (68 asersi)
 
 | Blok | Yang dibuktikan |
 |---|---|

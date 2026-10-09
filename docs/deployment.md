@@ -127,7 +127,7 @@ di `js/config.js` → push.
 ## Tes
 
 ```bash
-node test/run_backend_tests.js       # 60 asersi, SQLite in-memory (offline)
+node test/run_backend_tests.js       # 68 asersi, SQLite in-memory (offline)
 # atau
 cd test && npm install && npm test
 ```
